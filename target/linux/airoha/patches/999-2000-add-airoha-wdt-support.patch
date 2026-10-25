@@ -1,0 +1,48 @@
+From c5f1909d712542fbdc10ec681971ffcb2e5cbbe1 Mon Sep 17 00:00:00 2001
+From: Maso Huang <maso.huang@mediatek.com>
+Date: Tue, 9 Jan 2024 16:33:13 +0800
+Subject: [PATCH] add airoha wdt support
+
+---
+ drivers/watchdog/Kconfig  | 12 ++++++++++++
+ drivers/watchdog/Makefile |  1 +
+ 2 files changed, 13 insertions(+)
+
+diff --git a/drivers/watchdog/Kconfig b/drivers/watchdog/Kconfig
+index e2745f6..79ac6cc 100644
+--- a/drivers/watchdog/Kconfig
++++ b/drivers/watchdog/Kconfig
+@@ -343,6 +343,18 @@ config MLX_WDT
+ 
+ # ARM Architecture
+ 
++config AIROHA_WATCHDOG
++	tristate "AIROHA Watchdog"
++	depends on ARM
++	select MFD_SYSCON
++	select WATCHDOG_CORE
++	help
++	  Say Y here to include Watchdog timer support for the watchdog found
++	  on AIROHA chipsets.  Currently supported target is the AN7563.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called airoha_wdt.
++
+ config ARM_SP805_WATCHDOG
+ 	tristate "ARM SP805 Watchdog"
+ 	depends on (ARM || ARM64 || COMPILE_TEST) && ARM_AMBA
+diff --git a/drivers/watchdog/Makefile b/drivers/watchdog/Makefile
+index 2ee352b..155edca 100644
+--- a/drivers/watchdog/Makefile
++++ b/drivers/watchdog/Makefile
+@@ -36,6 +36,7 @@ obj-$(CONFIG_USBPCWATCHDOG) += pcwd_usb.o
+ # ALPHA Architecture
+ 
+ # ARM Architecture
++obj-$(CONFIG_AIROHA_WATCHDOG) += airoha_wdt.o
+ obj-$(CONFIG_ARM_SP805_WATCHDOG) += sp805_wdt.o
+ obj-$(CONFIG_ARM_SBSA_WATCHDOG) += sbsa_gwdt.o
+ obj-$(CONFIG_ARMADA_37XX_WATCHDOG) += armada_37xx_wdt.o
+-- 
+2.18.0
+

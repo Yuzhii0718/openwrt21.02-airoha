@@ -1,0 +1,23 @@
+diff -uNr old/Makefile new/Makefile
+--- old/Makefile	2018-06-29 04:35:06.000000000 +0800
++++ new/Makefile	2022-01-25 22:03:27.164857000 +0800
+@@ -32,7 +32,8 @@
+ 
+ OBJECTS:=$(OBJECTS2) $(EXT_OBJS) $(EXT_LIBS)
+ 
+-KERNEL_INCLUDES?=include/
++KERNEL_INCLUDES:=$(KERNEL_HEADER)
++#KERNEL_INCLUDES?=include/
+ 
+ ETHERTYPESPATH?=$(ETCDIR)
+ ETHERTYPESFILE:=$(ETHERTYPESPATH)/ethertypes
+@@ -66,6 +67,9 @@
+ #PROGSPECSD+=-DEBT_DEBUG
+ #CFLAGS+=-ggdb
+ 
++PROGSPECS+=$(BSP_CFLAGS)
++PROGSPECSD+=$(BSP_CFLAGS)
++
+ all: ebtables ebtables-restore
+ 
+ communication.o: communication.c include/ebtables_u.h

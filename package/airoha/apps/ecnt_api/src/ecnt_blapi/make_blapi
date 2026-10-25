@@ -1,0 +1,53 @@
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+include ecnt-api.mk
+else
+include $(BSP_API_DIR)/ecnt-api.mk
+endif
+include $(BSP_ROOTDIR)/ecnt-function.mk
+
+ifneq ($(strip $(TCSUPPORT_SISM))$(strip $(TCSUPPORT_WAN_ATM))$(strip $(TCSUPPORT_WAN_PTM)),)
+LIB_SUBDIRS_BUILD += xdsl
+endif
+
+LIB_SUBDIRS_BUILD += os example tc_partition system traffic perform
+
+# ifneq ($(strip $(AIROHA_BSPSDK)),)
+# LIB_SUBDIRS_BUILD +=
+# else
+LIB_SUBDIRS_BUILD += cmd
+# endif 
+
+INSTALL_TARGET=blapi_demo example
+			
+LIB_SUBDIRS_CLEAN=$(addsuffix _clean, $(LIB_SUBDIRS_BUILD))
+
+ifneq ($(strip $(SUBTARGET)),)
+TARGETS:=$(subst /, , $(SUBTARGET))
+else
+TARGETS:=blapi_demo
+endif
+
+blapi:$(TARGETS)
+	
+blapi_demo:blapi_lib
+	$(call BLApiMake,  $(BSP_BLAPI_DIR)/demo, all)
+
+blapi_lib:$(LIB_SUBDIRS_BUILD)
+	echo "build blapi_lib done"
+	
+$(LIB_SUBDIRS_BUILD):
+	echo $@
+	$(call BLApiMake, $(BSP_BLAPI_DIR)/$@, all, MAKEVAR=$@)
+
+blapi_clean:blapi_demo_clean blapi_lib_clean
+
+blapi_demo_clean:
+	$(call BLApiMake, $(BSP_BLAPI_DIR)/demo, clean)
+
+blapi_lib_clean:$(LIB_SUBDIRS_CLEAN)
+	
+$(LIB_SUBDIRS_CLEAN):
+	echo $(patsubst %_clean,%,$@)
+	$(call BLApiMake,  $(BSP_BLAPI_DIR)/$(patsubst %_clean,%,$@), clean)
+
+.PHONY : blapi_demo blapi_lib $(LIB_SUBDIRS_BUILD) $(LIB_SUBDIRS_CLEAN)

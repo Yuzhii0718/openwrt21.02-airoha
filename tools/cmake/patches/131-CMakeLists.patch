@@ -1,0 +1,15 @@
+--- a/CMakeLists.txt	2020-10-28 17:44:31.339845000 +0800
++++ b/CMakeLists.txt	2020-10-28 17:45:11.594790000 +0800
+@@ -103,9 +103,9 @@
+   # check for available C++ features
+   include(${CMake_SOURCE_DIR}/Source/Checks/cm_cxx_features.cmake)
+ 
+-  if(NOT CMake_HAVE_CXX_UNIQUE_PTR)
+-    message(FATAL_ERROR "The C++ compiler does not support C++11 (e.g. std::unique_ptr).")
+-  endif()
++#  if(NOT CMake_HAVE_CXX_UNIQUE_PTR)
++#    message(FATAL_ERROR "The C++ compiler does not support C++11 (e.g. std::unique_ptr).")
++#  endif()
+ endif()
+ 
+ # set the internal encoding of CMake to UTF-8

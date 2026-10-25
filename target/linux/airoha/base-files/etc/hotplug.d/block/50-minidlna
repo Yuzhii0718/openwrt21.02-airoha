@@ -1,0 +1,4 @@
+if [ "${ACTION}" = "add" ] || [ "${ACTION}" = "remove" ];then
+rm -rf /tmp/run/minidlna/files.db
+/etc/init.d/minidlna restart
+fi

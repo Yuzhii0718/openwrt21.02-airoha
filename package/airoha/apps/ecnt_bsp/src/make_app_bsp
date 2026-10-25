@@ -1,0 +1,1018 @@
+ifeq ($(strip $(TCSUPPORT_OPENWRT)),)
+include $(BSP_ROOTDIR)/ecnt-bsp.mk
+endif
+include $(BSP_ROOTDIR)/ecnt-function.mk
+
+APP_BSP_TARGET = api_prepare compileoption_lib prepare_devgen
+APP_BSP_TARGET_CLEAN = compileoption_lib_clean prepare_devgen_clean
+
+ifeq ($(strip $(TCSUPPORT_OPENWRT)),)
+include $(APP_BSP_PRIVATEDIR)/etc_script/copy_conf_script
+endif
+
+#ifeq ($(strip $(TCSUPPORT_BLAPI)),)
+#APP_BSP_TARGET += api
+#APP_BSP_TARGET_CLEAN += api_clean
+#else
+APP_BSP_TARGET += xpon_bsp_apps hw_driver sw_api
+APP_BSP_TARGET_CLEAN += xpon_bsp_apps_clean hw_driver_clean sw_api_clean
+#endif
+
+APP_BSP_TARGET += blapi ethcmd hw_nat smuxctl portbindcmd
+APP_BSP_TARGET_CLEAN += blapi_clean ethcmd_clean hw_nat_clean smuxctl_clean portbindcmd_clean
+
+ifeq ($(strip $(RDKB_BUILD)),)
+APP_BSP_TARGET += ethtool
+APP_BSP_TARGET_CLEAN += ethtool_clean
+endif
+
+APPS_TARGET = 11kvdaemon ated bndstrg wlancmd 11rdaemon 8021X wirelesstool iwprivget memtester mtd tcwdog cputemp pwctlcmd ipnew openssl_lib ovs stress-ng linuxptp
+APPS_TARGET_CLEAN=$(addsuffix _clean, $(APPS_TARGET))
+ifeq ($(strip $(RDKB_BUILD)),)
+APP_BSP_TARGET +=$(APPS_TARGET)
+APP_BSP_TARGET_CLEAN += $(APPS_TARGET_CLEAN)
+endif
+
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP)),)
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP_ENHANCE)),)
+APP_BSP_TARGET+= wappd
+APP_BSP_TARGET_CLEAN += wappd_clean
+endif
+ifneq ($(strip $(TCSUPPORT_EASYMESH_R13)),)
+APP_BSP_TARGET+= wappd_v2
+APP_BSP_TARGET_CLEAN += wappd_v2_clean
+endif
+ifneq ($(strip $(TCSUPPORT_MAP_R2)),)
+APP_BSP_TARGET+= wappd_r2
+APP_BSP_TARGET_CLEAN += wappd_r2_clean
+endif
+endif
+
+ifeq ($(strip $(TCSUPPORT_OPENWRT)),)
+ifneq ($(strip $(TCSUPPORT_WAN_GPON) $(TCSUPPORT_WAN_EPON)),)
+ifneq ($(strip $(TCSUPPORT_NP))_$(strip $(TCSUPPORT_NP_FTTR)),y_)
+ifneq ($(strip $(BSP)),)
+XPON_APP_DIR_CHANGE=$(shell if [ ! -d $(XPON_APP_BSP_DIR) -a -d $(XPON_APP_SDK_DIR) ]; \
+	then \
+		mv $(XPON_APP_SDK_DIR) $(TRUNK_DIR)/BSP/; \
+		ln -sf $(XPON_APP_BSP_DIR) $(TRUNK_DIR)/apps; echo "MV XPON_APP_DIR TO BSP successfully"; else echo "DO NOT MV XPON_APP_DIR"; fi;)
+$(warning Compile $(XPON_APP_DIR_CHANGE))
+include $(XPON_APP_BSP_DIR)/make_xpon_app
+OLT_APP_DIR_CHANGE=$(shell if [ ! -d $(OLT_APP_BSP_DIR) -a -d $(OLT_APP_SDK_DIR) ]; \
+	then \
+		mv $(OLT_APP_SDK_DIR) $(TRUNK_DIR)/BSP/; \
+		ln -sf $(OLT_APP_BSP_DIR) $(TRUNK_DIR)/apps; echo "MV OLT_APP_DIR TO BSP successfully"; else echo "DO NOT MV OLT_APP_DIR"; fi;)
+$(warning Compile $(OLT_APP_DIR_CHANGE))
+include $(OLT_APP_BSP_DIR)/make_olt_app
+ifeq ($(strip $(TCSUPPORT_IS_CF_PON)),)
+APP_BSP_TARGET += xpon_app
+APP_BSP_TARGET_CLEAN += xpon_app_clean
+#APP_BSP_TARGET += olt_app
+#APP_BSP_TARGET_CLEAN += olt_app_clean
+endif
+else
+ifeq ("$(IS_XPON_APP_BSP_DIR_EXIST):$(IS_XPON_APP_SDK_DIR_EXIST)", "Y:N")
+include $(XPON_APP_BSP_DIR)/make_xpon_app
+ifeq ($(strip $(TCSUPPORT_IS_CF_PON)),)
+APP_BSP_TARGET += xpon_app
+APP_BSP_TARGET_CLEAN += xpon_app_clean
+endif
+endif
+ifeq ("$(IS_OLT_APP_BSP_DIR_EXIST):$(IS_OLT_APP_SDK_DIR_EXIST)", "Y:N")
+include $(OLT_APP_BSP_DIR)/make_olt_app
+ifeq ($(strip $(TCSUPPORT_IS_CF_PON)),)
+#APP_BSP_TARGET += olt_app
+#APP_BSP_TARGET_CLEAN += olt_app_clean
+endif
+endif
+endif
+endif
+endif
+
+ifneq ($(strip $(TCSUPPORT_VOIP)),)
+ifneq ($(IS_VOIP_BSP_CRITICAL_DIR_EXIST)$(IS_VOIP_BSP_DIR_EXIST),NN)
+APP_BSP_TARGET += voip_app_bsp
+APP_BSP_TARGET_CLEAN += voip_app_bsp_clean
+endif
+endif
+endif
+
+bsp_app: $(APP_BSP_TARGET) 
+bsp_app_clean: $(APP_BSP_TARGET_CLEAN) 
+
+###########################################################################################
+compileoption_lib:
+ifeq ($(strip $(RDKB_BUILD)),)
+	echo "Copy compileoption_lib source code from kernel"
+	cp $(KERNEL_DIR)/kernel/libcompileoption.c $(APP_BSP_COMPILEOPTION_LIB_DIR)
+	cp $(KERNEL_DIR)/include/linux/libcompileoption.h $(APP_BSP_COMPILEOPTION_LIB_DIR)
+endif
+	
+	echo "Building compileoption_lib library"	
+	$(MAKE) -C $(APP_BSP_COMPILEOPTION_LIB_DIR)
+	if test -e $(APP_BSP_COMPILEOPTION_LIB_DIR)/libcompileoption_bsp.so; \
+	then echo "Compile APP_BSP_COMPILEOPTION_LIB_DIR Lib success"; \
+	else echo "Compile APP_BSP_COMPILEOPTION_LIB_DIR Lib error!"; exit 1; \
+	fi
+	$(MAKE) -C $(APP_BSP_COMPILEOPTION_LIB_DIR) install
+
+	echo "Copying compileoption_lib for apps"
+	install -d $(APP_COMPILEOPTION_SRC_DIR)
+	cp  $(APP_BSP_COMPILEOPTION_LIB_DIR)/libcompileoption.c  $(APP_COMPILEOPTION_SRC_DIR)
+	cp  $(APP_BSP_COMPILEOPTION_LIB_DIR)/libcompileoption.h  $(APP_COMPILEOPTION_SRC_DIR)
+
+compileoption_lib_clean:
+
+	echo "Clean APP_BSP_COMPILEOPTION_LIB_DIR library"
+	$(MAKE) -C $(APP_BSP_COMPILEOPTION_LIB_DIR) clean
+	rm -rf $(APP_COMPILEOPTION_SRC_DIR)
+
+#####################################################################################	
+
+ratemanager:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Build ratemanager"
+	$(call BspAppMake, $(APP_BSP_PRIVATEDIR)/ratemanager, all, ratemanager)
+	if test -e $(APP_BSP_PRIVATEDIR)/ratemanager/ratemanager; \
+	then echo "Compile ratemanager success"; \
+	else echo "Compile ratemanager error!"; exit 1; \
+	fi
+	
+	$(call BspAppUserFsBinInstall, $(APP_BSP_PRIVATEDIR)/ratemanager, ratemanager)
+endif
+ratemanager_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Clean ratemanager"
+	$(call BspAppMake, $(APP_BSP_PRIVATEDIR)/ratemanager, clean)
+endif
+#################################################################################
+
+api_prepare:
+	cp  $(TOOLS_TRX_DIR)/trx.h $(BSP_EXT_INC)
+	cp -rf $(GLOBAL_INC_DIR)/uapi $(INSTALL_GLOBALINC)
+
+hw_driver:
+	make -f $(BSP_API_HW_DRIVER_DIR)/make_hw_driver hw_api
+
+hw_driver_clean:
+	make -f $(BSP_API_HW_DRIVER_DIR)/make_hw_driver hw_api_clean
+
+sw_api:
+	make -f $(BSP_API_SW_API_DIR)/make_sw_api sw_api
+	
+sw_api_clean:
+	make -f $(BSP_API_SW_API_DIR)/make_sw_api sw_api_clean
+	
+blapi:
+	make -f $(BSP_BLAPI_DIR)/make_blapi blapi	
+
+blapi_clean:
+	make -f $(BSP_BLAPI_DIR)/make_blapi blapi_clean	
+	
+###########################################################################		
+
+#Build ethcmd
+ifneq ($(strip $(CUSTOMER_BUILD_RELEASECODE)),)
+ethcmd:
+	echo "Build ethcmd111"
+	rm -f $(BSP_INT_FS)/usr/script/wanether.sh
+	rm -f $(BSP_EXT_FS)/usr/script/wanether.sh
+
+	cp $(APP_BINARY_DIR)/$(TCPLATFORM)/ethcmd $(BSP_INT_FS)/userfs/bin/ethphxcmd
+	cp $(APP_BINARY_DIR)/$(TCPLATFORM)/ethcmd $(BSP_EXT_FS)/userfs/bin/ethphxcmd
+
+ifneq ($(strip $(TCSUPPORT_CPU_MT7520)),)
+ifeq ($(MT7520_WAN_ETHER),1)
+	cp  $(APP_BSP_ETC_SCRIPT_DIR)/wanether.sh $(BSP_INT_FS)/usr/script/
+	cp  $(APP_BSP_ETC_SCRIPT_DIR)/wanether.sh $(BSP_EXT_FS)/usr/script/
+
+endif
+endif
+ethcmd_clean:
+	echo "CUSTOMER_BUILD_RELEASECODE: Build ethcmd, do nothing!"
+else
+ethcmd:
+	echo "Build ethcmd"
+	$(MAKE) -C $(APP_BSP_ETHCMD_DIR)
+	if test -e $(APP_BSP_ETHCMD_DIR)/ethphxcmd; \
+	then echo "Compile ethcmd success"; \
+	else echo "Compile ethcmd error!"; exit 1; \
+	fi
+	rm -f $(BSP_INT_FS)/usr/script/wanether.sh
+	rm -f $(BSP_EXT_FS)/usr/script/wanether.sh
+
+ifneq ($(strip $(TCSUPPORT_CPU_MT7520)),)
+ifeq ($(MT7520_WAN_ETHER),1)
+	cp  $(APP_BSP_ETC_SCRIPT_DIR)/wanether.sh $(BSP_INT_FS)/usr/script/
+	cp  $(APP_BSP_ETC_SCRIPT_DIR)/wanether.sh $(BSP_EXT_FS)/usr/script/
+
+endif
+endif	
+	
+ethcmd_clean:
+	echo "Clean ethcmd"
+	$(MAKE) -C $(APP_BSP_ETHCMD_DIR) clean
+ifneq ($(strip $(TCSUPPORT_MT7530_SWITCH_API)),)
+	$(MAKE) -C $(APP_BSP_ETHCMD_DIR) lib_clean
+endif	
+
+endif
+###########################################################################		
+
+#Build buttons
+
+buttons:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Build buttons"
+
+	$(MAKE) -C $(APP_BSP_BUTTONS_DIR)
+	if test -e $(APP_BSP_BUTTONS_DIR)/buttons; \
+	then echo "Compile buttons success"; cp $(APP_BSP_BUTTONS_DIR)/buttons $(BSP_EXT_FS_USR); cp $(APP_BSP_BUTTONS_DIR)/button_handler_scritps/* $(BSP_EXT_FS_USR);\
+	else echo "Compile buttons error!"; exit 1; \
+	fi
+endif
+buttons_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Clean buttons"	
+	$(MAKE) -C $(APP_BSP_BUTTONS_DIR) clean
+endif
+
+#######################################################################
+
+
+#Build hw_nat
+ifneq ($(strip $(TCSUPPORT_RA_HWNAT)),)
+hw_nat:
+	echo "Build hw_nat"
+#ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(MAKE) -C $(APP_BSP_RA_HWNAT_7510_DIR)
+	if test -e $(APP_BSP_RA_HWNAT_7510_DIR)/hw_nat; \
+	then echo "Compile hw_nat success"; \
+	else echo "Compile hw_nat error!"; exit 1; \
+	fi
+#else
+#	$(MAKE) -C $(APP_RA_HWNAT_DIR)
+#	if test -e $(APP_RA_HWNAT_DIR)/hw_nat; \
+#	then echo "Compile hw_nat success"; \
+#	else echo "Compile hw_nat error!"; exit 1; \
+#	fi
+#	cp $(APP_RA_HWNAT_DIR)/ac  $(BSP_INT_FS)/userfs/bin/
+#	cp $(APP_RA_HWNAT_DIR)/acl  $(BSP_INT_FS)/userfs/bin/
+#	cp $(APP_RA_HWNAT_DIR)/hw_nat  $(BSP_INT_FS)/userfs/bin/
+#	cp $(APP_BINARY_DIR)/$(TCPLATFORM)/hw_nat $(BSP_EXT_FS)/userfs/bin/
+#	cp $(APP_RA_HWNAT_DIR)/mtr  $(BSP_INT_FS)/userfs/bin/
+#endif	
+hw_nat_clean:
+	echo "Clean hw_nat"	
+#ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(MAKE) -C $(APP_BSP_RA_HWNAT_7510_DIR) clean
+#else
+#	$(MAKE) -C $(APP_RA_HWNAT_DIR) clean
+#endif
+else
+hw_nat:
+	echo "No Build hw_nat!"
+hw_nat_clean:
+	echo "No Clean hw_nat!"
+endif
+###########################################################################		
+
+#Build smuxctl
+ifneq ($(strip $(TCSUPPORT_SMUX)),)
+smuxctl:
+	echo "Building smuxctl"
+	$(MAKE) -C $(APP_BSP_SMUXCTL_DIR)
+	if test -e $(APP_BSP_SMUXCTL_DIR)/smuxctl; \
+	then echo "Compile smuxctl success"; \
+	else echo "Compile smuxctl error!"; exit 1; \
+	fi
+
+smuxctl_clean:
+	echo "Clean smuxctl"
+	$(MAKE) -C $(APP_BSP_SMUXCTL_DIR) clean
+else
+smuxctl:		
+smuxctl_clean:
+endif
+###########################################################################
+#Build cputemp
+cputemp:
+	echo "Building cpu_temp"
+	$(MAKE) -C $(BSP_API_CPUTEMP_DIR)
+	if test -e $(BSP_API_CPUTEMP_DIR)/cputemp; \
+	then echo "Compile cputemp success"; \
+	else echo "Compile cputemp error!"; exit 1; \
+	fi
+
+cputemp_clean:
+	echo "Clean cpu_temp"
+	$(MAKE) -C $(BSP_API_CPUTEMP_DIR) clean
+
+###########################################################################
+#Building tcwdog
+tcwdog:
+	echo "Build tcwdog"
+	$(MAKE) -C $(BSP_API_TCWDOG_DIR)
+	if test -e $(BSP_API_TCWDOG_DIR)/tcwdog; \
+	then echo "Compile tcwdog success"; \
+	else echo "Compile tcwdog error!"; exit 1; \
+	fi
+	
+tcwdog_clean:
+	echo "Clean tcwdog"
+	$(MAKE) -C $(BSP_API_TCWDOG_DIR) clean
+
+###########################################################################
+#Build pwctlcmd
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+pwctlcmd:
+	cp $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/pwctlcmd $(BSP_EXT_FS)/userfs/bin/
+	cp $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/pwctlcmd $(BSP_INT_FS)/userfs/bin/
+	
+pwctlcmd_clean:
+	echo "CUSTOMER_BUILD_RELEASECODE: Build pwctlcmd, do nothing!"
+else
+pwctlcmd:
+	echo "Build pwctlcmd"
+	$(MAKE) -C $(BSP_API_PWCTLCMD_DIR)
+	if test -e $(BSP_API_PWCTLCMD_DIR)/pwctlcmd; \
+	then echo "Compile pwctlcmd success"; \
+	else echo "Compile pwctlcmd error!"; exit 1; \
+	fi
+
+pwctlcmd_clean:
+	echo "Clean pwctlcmd"
+	$(MAKE) -C $(BSP_API_PWCTLCMD_DIR) clean
+endif
+###########################################################################
+memtester:
+	echo "Build memtester"
+	echo $(CC) $(ARHT_SECURE_OBJ_FLAGS) -O2 -DPOSIX -D_POSIX_C_SOURCE=200809L -D_FILE_OFFSET_BITS=64 -DTEST_NARROW_WRITES -c > $(BSP_APP_MEMTESTER_DIR)/conf-cc
+	echo $(CC) $(ARHT_SECURE_APP_FLAGS) -s > $(BSP_APP_MEMTESTER_DIR)/conf-ld
+	$(MAKE) -C $(BSP_APP_MEMTESTER_DIR)
+	if test -e $(BSP_APP_MEMTESTER_DIR)/memtester; \
+	then echo "Compile memtester success"; \
+	else echo "Compile memtester error!"; exit 1; \
+	fi
+	$(call BspAppUserFsBinInstall, $(BSP_APP_MEMTESTER_DIR), memtester)
+	
+memtester_clean:
+	echo "Clean memtester"
+	$(MAKE) -C $(BSP_APP_MEMTESTER_DIR) clean
+
+ecnt_mmc: hw_driver
+	echo "Build ecnt_mmc"
+	$(MAKE) -C $(APP_BSP_ECNT_MMC_DIR)
+	if test -e $(APP_BSP_ECNT_MMC_DIR)/ecnt_mmc; \
+	then echo "Compile ecnt_mmc success"; \
+	else echo "Compile ecnt_mmc error!"; exit 1; \
+	fi
+	
+ecnt_mmc_clean:
+	echo "Clean ecnt_mmc"
+	$(MAKE) -C $(APP_BSP_ECNT_MMC_DIR) clean
+
+mtd:
+	#cp -rf $(GLOBAL_INC_DIR)/flash_layout/tc_partition.h $(BSP_APP_MTD_DIR)/
+	#cp -rf $(GLOBAL_INC_DIR)/flash_layout/prolinecmd.h $(BSP_APP_MTD_DIR)/
+	#cp -rf $(GLOBAL_INC_DIR)/modules/xpon_phy_global/mt7570.h  $(BSP_APP_MTD_DIR)/
+	echo "Build mtd"
+	$(MAKE) -C $(BSP_APP_MTD_DIR)
+	if test -e $(BSP_APP_MTD_DIR)/mtd; \
+	then echo "Compile mtd success"; \
+	else echo "Compile mtd error!"; exit 1; \
+	fi
+	
+mtd_clean:
+	echo "Clean mtd"
+	$(MAKE) -C $(BSP_APP_MTD_DIR) clean
+
+map_app:
+	echo "Build map_app"
+	$(MAKE) -C $(APP_BSP_PUBLICDIR)/ivi-utils
+	if test -e $(APP_BSP_PUBLICDIR)/ivi-utils/ivictl; \
+	then echo "Compile map_app success"; \
+	else echo "Compile map_app error!"; exit 1; \
+	fi
+	cp $(APP_BSP_PUBLICDIR)/ivi-utils/ivictl $(BSP_EXT_FS)/usr/bin
+	
+map_app_clean:
+	echo "Clean map_app"
+	$(MAKE) -C $(APP_BSP_PUBLICDIR)/ivi-utils clean
+        
+env:
+	echo "Build env"
+	$(MAKE) -C $(BSP_PUBLICDIR)/env
+	if test -e $(BSP_PUBLICDIR)/env/showenv; \
+	then echo "Compile env success"; \
+	else echo "Compile env error!"; exit 1; \
+	fi
+	cp  $(BSP_PUBLICDIR)/env/showenv  $(FILESYSTEM_DIR)/usr/bin/
+	cp  $(BSP_PUBLICDIR)/env/setenv  $(FILESYSTEM_DIR)/usr/bin/
+	
+env_clean:
+	echo "Clean env"
+	$(MAKE) -C $(BSP_PUBLICDIR)/env clean	
+
+ipnew:
+	echo "Build ipnew"
+	cd $(BSP_APP_IPROUTE_IP_NEW_DIR) && ./configure --host=$(COMPILE_TOOLCHAIN) --target=$(COMPILE_TOOLCHAIN)
+	$(MAKE) -C $(BSP_APP_IPROUTE_IP_NEW_DIR) all 
+	if test -e $(BSP_APP_IPROUTE_IP_NEW_DIR)/ip/ip; \
+	then echo "Compile ipnew success"; \
+	else echo "Compile ipnew error;" exit 1; \
+	fi
+ifeq ($(strip $(RDKB_BUILD)),)
+	cp $(BSP_APP_IPROUTE_IP_NEW_DIR)/ip/ip $(BSP_EXT_FS)/usr/bin
+	cp $(BSP_APP_IPROUTE_IP_NEW_DIR)/bridge/bridge $(BSP_EXT_FS)/usr/bin/
+endif
+	cp $(BSP_APP_IPROUTE_IP_NEW_DIR)/tc/tc $(BSP_EXT_FS)/usr/bin
+
+ipnew_clean:
+	echo "Clean ipnew"
+	-$(MAKE) -C $(BSP_APP_IPROUTE_IP_NEW_DIR) clean
+	-$(MAKE) -C $(BSP_APP_IPROUTE_IP_NEW_DIR) distclean
+	
+openssl_lib:
+ifneq ($(strip $(TCSUPPORT_OPENSSL_V1_1)),)
+	echo "Compile openssl lib"
+	if test -e $(BSP_APP_OPENSSL_DIR)/OPSSL/lib/_install_$(CROSS_COMPILE); \
+	then echo "Already compile openssl!"; exit 0; \
+	else \
+	if test -e $(BSP_APP_OPENSSL_DIR)/checkENV_config.sh; \
+		then cd $(BSP_APP_OPENSSL_DIR) && ./checkENV_config.sh; \
+		make && make install; \
+	else \
+		cd $(BSP_APP_OPENSSL_DIR) && ./config enable-shared no-asm --prefix=$(BSP_APP_OPENSSL_DIR)/OPSSL --cross-compile-prefix="" && make && make install; \
+	fi; \
+	fi
+	
+	touch $(BSP_APP_OPENSSL_V1_0_DIR)/Makefile
+	$(MAKE) -C $(BSP_APP_OPENSSL_V1_0_DIR)
+	$(MAKE) install -C $(BSP_APP_OPENSSL_V1_0_DIR)
+
+	if test -e $(BSP_APP_OPENSSL_V1_0_DIR)/OPSSL/lib/libcrypto.so; \
+	then echo "Compile openssl success"; \
+	cp -rf $(BSP_APP_OPENSSL_V1_0_DIR)/OPSSL $(LIB_INSTALL_DIR)/OPSSLV1_0; \
+	rm -f $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libssl.a; \
+	rm -f $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libssl.so*; \
+	rm -f $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libcrypto.a; \
+	rm -f $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libcrypto.so; \
+	cd $(LIB_INSTALL_DIR)/OPSSLV1_0/lib && ln -sf libcrypto.so.1.0.0 libcrypto_1_0.so; \
+	cp $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libcrypto_1_0.so $(BSP_EXT_FS)/lib -avd; \
+	cp $(LIB_INSTALL_DIR)/OPSSLV1_0/lib/libcrypto.so.1.0.0 $(BSP_EXT_FS)/lib -avd; \
+	touch $(BSP_APP_OPENSSL_V1_0_DIR)/_install_$(CROSS_COMPILE); \
+	else echo "Compile openssl error!"; exit 1; \
+	fi
+else
+	echo "Compile openssl lib"
+	touch $(BSP_APP_OPENSSL_DIR)/Makefile
+	$(MAKE) -C $(BSP_APP_OPENSSL_DIR)
+	$(MAKE) install -C $(BSP_APP_OPENSSL_DIR)
+endif
+
+	if test -e $(BSP_APP_OPENSSL_DIR)/OPSSL/lib/libcrypto.so; \
+	then echo "Compile openssl success"; \
+	cp $(BSP_APP_OPENSSL_DIR)/OPSSL/lib/libcrypto.so* $(BSP_EXT_FS)/lib -avd; \
+	cp $(BSP_APP_OPENSSL_DIR)/OPSSL/lib/libssl.so*    $(BSP_EXT_FS)/lib -avd; \
+	cp -rf $(BSP_APP_OPENSSL_DIR)/OPSSL $(LIB_INSTALL_DIR); \
+	touch $(BSP_APP_OPENSSL_DIR)/_install_$(CROSS_COMPILE); \
+	else echo "Compile openssl error!"; exit 1; \
+	fi
+
+openssl_lib_clean:
+ifneq ($(strip $(TCSUPPORT_OPENSSL_V1_1)),)
+	echo "Clean openssl lib"
+	touch $(BSP_APP_OPENSSL_DIR)/Makefile; 
+	rm -rf $(BSP_APP_OPENSSL_DIR)/_install_*
+	-$(MAKE) -C $(BSP_APP_OPENSSL_DIR) distclean
+	rm -rf $(BSP_APP_OPENSSL_DIR)/OPSSL
+	rm -rf $(BSP_EXT_FS)/lib/libcrypto.so* 
+	rm -rf $(BSP_EXT_FS)/lib/libssl.so*
+	rm -rf $(LIB_INSTALL_DIR)/OPSSL
+
+	touch $(BSP_APP_OPENSSL_V1_0_DIR)/Makefile; 
+	rm -rf $(BSP_APP_OPENSSL_V1_0_DIR)/_install_*
+	-$(MAKE) -C $(BSP_APP_OPENSSL_V1_0_DIR) clean
+	rm -rf $(BSP_EXT_FS)/lib/libcrypto_1_0.so
+	rm -rf $(BSP_EXT_FS)/lib/libcrypto.so.1.0.0
+	rm -rf $(LIB_INSTALL_DIR)/OPSSLV1_0
+else
+	echo "Clean openssl lib"
+	touch $(BSP_APP_OPENSSL_DIR)/Makefile; 
+	rm -rf $(BSP_APP_OPENSSL_DIR)/_install_*
+	-$(MAKE) -C $(BSP_APP_OPENSSL_DIR) clean
+	rm -rf $(BSP_EXT_FS)/lib/libcrypto.so* 
+	rm -rf $(BSP_EXT_FS)/lib/libssl.so*
+	rm -rf $(LIB_INSTALL_DIR)/OPSSL
+endif
+
+
+
+libnl-35:
+	echo "Build libnl-35"
+	cd $(BSP_APP_LIBNL_DIR) && ./configure --host=$(HOST) --prefix=$(BSP_APP_LIBNL_DIR)/__install --enable-static --enable-shared
+	cd $(BSP_APP_LIBNL_DIR) && make
+	cd $(BSP_APP_LIBNL_DIR) && make install
+	cp $(BSP_APP_LIBNL_DIR)/__install/lib/*.so* $(BSP_EXT_FS)/lib -avd;
+
+libnl-35_clean:
+	- make -C $(BSP_APP_LIBNL_DIR) clean
+	- make -C $(BSP_APP_LIBNL_DIR) distclean
+	- rm -rf $(BSP_APP_LIBNL_DIR)/__install
+	- rm -rf $(BSP_EXT_FS)/lib/libnl* 
+	
+wpas-27:
+	echo "Build wpas-27"
+	$(MAKE) wpa_supplicant -C $(BSP_APP_WPAS27_DIR)/wpa_supplicant
+	if test -e $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_supplicant; \
+	then echo "Wpa supplicant 2.7 success"; \
+	else echo "Wpa supplicant 2.7 error"; exit 1; \
+	fi;
+	
+	$(MAKE) wpa_cli -C $(BSP_APP_WPAS27_DIR)/wpa_supplicant
+	if test -e $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_cli; \
+	then echo "Wpa client 2.7 success"; \
+	else echo "Wpa client 2.7 error"; exit 1; \
+	fi;
+	
+	$(STRIP) $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_supplicant
+	$(STRIP) $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_cli
+	
+	mv $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_supplicant $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpas-27
+	$(call BspAppUsrBinInstall, $(BSP_APP_WPAS27_DIR)/wpa_supplicant/, wpas-27)
+	mv $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpa_cli $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpac-27
+	$(call BspAppUsrBinInstall, $(BSP_APP_WPAS27_DIR)/wpa_supplicant/, wpac-27)
+
+wpas-27_clean:
+	-$(MAKE) -C $(BSP_APP_WPAS27_DIR)/wpa_supplicant clean
+	-rm -rf $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpas-27 
+	-rm -rf $(BSP_APP_WPAS27_DIR)/wpa_supplicant/wpac-27 
+	$(call BspAppUsrBinClean, wpas-27)	
+	$(call BspAppUsrBinClean, wpac-27)
+	
+ifneq ($(strip $(TCSUPPORT_SDN_OVS)),)
+ovs: 
+	echo "Build ovs 2.5.0"
+	if test -e $(BSP_APP_OVS_DIR)/openvswitch-2.5.0; \
+	then echo "already tar"; \
+	else cd $(BSP_APP_OVS_DIR) && tar -zxvf openvswitch-2.5.0.tar.gz;\
+	fi
+	cp $(BSP_APP_OVS_DIR)/make $(BSP_APP_OVS_DIR)/openvswitch-2.5.0
+	
+ifneq ($(strip $(TCSUPPORT_CPU_ARMV8)),)
+	cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./configure --host=$(COMPILE_TOOLCHAIN) --target=$(COMPILE_TOOLCHAIN) --with-rundir=/tmp/openvswitch/run --with-dbdir=/tmp/openvswitch/run --with-logdir=/tmp/openvswitch/log --prefix=/usr/ovs --with-openssl=$(BSP_APP_OPENSSL_DIR)/OPSSL --enable-static --disable-shared CFLAGS="$(CFG_CFLAGS) -std=gnu99" KARCH=arm
+else
+	cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./configure --host=$(HOST) --target=$(ALIAS_TOOLCHAIN) --with-linux=$(KERNEL_DIR) --with-rundir=/tmp/openvswitch/run --with-dbdir=/tmp/openvswitch/run --with-logdir=/tmp/openvswitch/log --prefix=/usr/ovs --with-openssl=$(BSP_APP_OPENSSL_DIR)/OPSSL --enable-static --disable-shared CFLAGS="$(CFG_CFLAGS) -std=gnu99" KARCH=mips
+endif
+	
+	cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./make -C $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 CC=$(CROSS)gcc AR=$(CROSS)ar RANLIB=$(CROSS)ranlib LD=$(CROSS)ld
+	cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./make -C $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 CC=$(CROSS)gcc AR=$(CROSS)ar RANLIB=$(CROSS)ranlib LD=$(CROSS)ld prefix=$(BSP_EXT_FS)/usr/ovs install 
+	
+	if test -e $(BSP_APP_OVS_DIR)/openvswitch-2.5.0/datapath/linux/openvswitch.ko; \
+	then cp $(BSP_APP_OVS_DIR)/openvswitch-2.5.0/datapath/linux/openvswitch.ko $(BSP_EXT_FS)/lib/modules/; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/include; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/lib; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/share/man; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/ovn*; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/ovs-testcontroller; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/ovs-pki; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/vtep-ctl; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/ovs-benchmark; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/bin/ovs-docker; \
+	rm -rf $(BSP_EXT_FS)/usr/ovs/sbin/ovs-vlan-bug-workaround; \
+	echo "Compile ovs 2.5.0 success"; \
+	else echo "Compile ovs 2.5.0 error!"; exit 1; \
+	fi
+	
+	$(STRIP) --strip-unneeded $(BSP_EXT_FS)/lib/modules/openvswitch.ko
+	-$(STRIP) --strip-unneeded $(BSP_EXT_FS)/usr/ovs/bin/*
+	-$(STRIP) --strip-unneeded $(BSP_EXT_FS)/usr/ovs/sbin/*
+	
+ovs_clean:
+	echo "Clean ovs 2.5.0"
+	if test -e $(BSP_APP_OVS_DIR)/openvswitch-2.5.0; \
+	then echo "already tar"; \
+	else cd $(BSP_APP_OVS_DIR) && tar -zxvf openvswitch-2.5.0.tar.gz;\
+	fi
+	cp $(BSP_APP_OVS_DIR)/make $(BSP_APP_OVS_DIR)/openvswitch-2.5.0
+
+	-cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./make -C $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 clean
+	-cd $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 && ./make -C $(BSP_APP_OVS_DIR)/openvswitch-2.5.0 distclean
+	
+	rm -f $(BSP_EXT_FS)/lib/modules/openvswitch.ko
+	rm -f $(BSP_EXT_FS)/lib/libcrypto.so
+	rm -rf $(BSP_EXT_FS)/usr/ovs
+else
+ovs:
+ovs_clean:
+endif
+
+#Build stress-ng
+stress-ng:
+ifneq ($(strip $(TCSUPPORT_TEST_STRESS_NG)),)
+ifneq ($(strip $(TCSUPPORT_TEST_STRESS_NG_V01310)),)
+	echo "Building stress-ng"
+	$(MAKE) -C $(BSP_APP_STRESS_NG_DIR)
+	if test -e $(BSP_APP_STRESS_NG_DIR)/stress-ng; \
+	then echo "Compile stress-ng success"; \
+	else echo "Compile stress-ng error!"; exit 1; \
+	fi
+	$(call BspAppUserFsBinInstall, $(BSP_APP_STRESS_NG_DIR), stress-ng)
+endif
+endif
+	
+stress-ng_clean:
+ifneq ($(strip $(TCSUPPORT_TEST_STRESS_NG)),)
+ifneq ($(strip $(TCSUPPORT_TEST_STRESS_NG_V01310)),)
+	echo "Clean stress-ng"
+	$(MAKE) -C $(BSP_APP_STRESS_NG_DIR) clean
+endif
+endif
+############################################################################
+#Build 11KV test daemon
+ifeq ($(strip $(TCSUPPORT_WLAN_DOT11V_WNM) $(TCSUPPORT_WLAN_DOT11K_RRM)),)
+11kvdaemon:
+	$(call BspAppMake, $(BSP_API_11KV_DIR), all, 11kvdaemon)
+	if test -e $(BSP_API_11KV_DIR)/kv; \
+	then echo "Compile 11kvdaemon success"; \
+	else echo "Compile 11kvdaemon error!"; exit 1; \
+	fi
+
+11kvdaemon_clean:
+	$(call BspAppMake, $(BSP_API_11KV_DIR), clean)
+else
+11kvdaemon:
+	echo test
+11kvdaemon_clean:
+	echo test1
+endif
+###########################################################################
+#Build ated
+ated:
+	echo "Building ated"
+	$(call BspAppMake, $(BSP_API_ATED_DIR), all, ated)
+	if test -e $(BSP_API_ATED_DIR)/ated; \
+	then echo "Compile ated success"; \
+	else echo "Compile ated error!"; exit 1; \
+	fi
+	$(call BspAppUsrBinInstall, $(BSP_API_ATED_DIR), ated)
+
+ated_clean:
+	echo "Clean ated"
+	$(call BspAppMake, $(BSP_API_ATED_DIR), clean)
+	$(call BspAppUsrBinClean, ated)	
+	
+###########################################################################
+#Build bndstrg daemon
+ifneq ($(strip $(TCSUPPORT_WLAN_BNDSTRG)),)
+bndstrg:
+	$(call BspAppMake, $(BSP_API_BNDSTRG_DIR), all, bndstrg)
+	if test -e $(BSP_API_BNDSTRG_DIR)/bndstrg2; \
+	then echo "Compile bndstrg daemon success"; \
+	else echo "Compile bndstrg daemon error!"; exit 1; \
+	fi
+
+bndstrg_clean:
+	$(call BspAppMake, $(BSP_API_BNDSTRG_DIR), clean)
+else
+bndstrg:
+bndstrg_clean:
+endif
+###########################################################################
+#Build wlancmd
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+wlancmd:
+	echo "Build wlancmd"
+	$(call BspAppMake, $(BSP_API_WLANCMD_DIR), all, wlancmd)
+	if test -e $(BSP_API_WLANCMD_DIR)/wlanphxcmd; \
+	then echo "Compile wlancmd success"; \
+	else echo "Compile wlancmd error!"; exit 1; \
+	fi	
+
+wlancmd_clean:
+	echo "Clean wlancmd"
+	$(call BspAppMake, $(BSP_API_WLANCMD_DIR), clean)
+
+else
+wlancmd:
+	echo "No Build wlancmd!"
+wlancmd_clean:
+	echo "No Clean wlancmd!"	
+endif
+###########################################################################
+#Build 11R test daemon
+ifneq ($(strip $(TCSUPPORT_WLAN_DOT11R_FT)),)
+11rdaemon:
+	$(call BspAppMake, $(BSP_API_MTKIAPPD_DIR), all, 11rdaemon)
+	if test -e $(BSP_API_MTKIAPPD_DIR)/mtkiappd; \
+	then echo "Compile 11rdaemon success"; \
+	else echo "Compile 11rdaemon error!"; exit 1; \
+	fi
+
+11rdaemon_clean:
+	$(call BspAppMake, $(BSP_API_MTKIAPPD_DIR), clean)
+else
+11rdaemon:
+11rdaemon_clean:
+endif
+###########################################################################
+#Build 8021X
+ifneq ($(strip $(TCSUPPORT_WLAN_8021X)),)
+8021X:
+	echo "Build 8021X"
+	$(call BspAppMake, $(BSP_API_8021X_DIR), all, 8021X)
+	if test -e $(BSP_API_8021X_DIR)/rtdot1xd; \
+	then echo "Compile 8021X success"; \
+	else echo "Compile 8021X error!"; exit 1; \
+	fi
+	ln -sf rtdot1xd  $(BSP_EXT_FS)/userfs/bin/rtdot1xd_AC
+	
+8021X_clean:
+	echo "Clean 8021X"
+	$(call BspAppMake, $(BSP_API_8021X_DIR), clean)
+else
+8021X:
+8021X_clean:
+endif
+###########################################################################
+#Build wireless_tools.28
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+wirelesstool:
+	echo "Build wirelesstool"
+	$(call BspAppMake, $(BSP_API_WRIELESSTOOL_DIR), all, wirelesstool)
+	if test -e $(BSP_API_WRIELESSTOOL_DIR)/iwpriv; \
+	then echo "Compile iwpriv success"; \
+	else echo "Compile iwpriv error!"; exit 1; \
+	fi
+	if test -e $(BSP_API_WRIELESSTOOL_DIR)/libiw.so.28; \
+	then echo "Compile libiw.so.28 success"; \
+	else echo "Compile libiw.so.28 error!"; exit 1; \
+	fi
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP)),)
+	if test -e $(BSP_API_WRIELESSTOOL_DIR)/iwconfig; \
+	then echo "Compile iwconfig success"; \
+	else echo "Compile iwconfig error!"; exit 1; \
+	fi
+	$(call BspAppUserFsBinInstall, $(BSP_API_WRIELESSTOOL_DIR), iwconfig)
+endif
+	$(call BspAppUserFsBinInstall, $(BSP_API_WRIELESSTOOL_DIR), iwpriv)
+	cp $(BSP_API_WRIELESSTOOL_DIR)/libiw.so.28  $(BSP_EXT_FS)/lib/
+	
+wirelesstool_clean:
+	echo "Clean wirelesstool"
+	$(call BspAppMake, $(BSP_API_WRIELESSTOOL_DIR), clean)
+	$(call BspAppUserFsBinClean,  iwconfig iwpriv)	
+	
+else
+wirelesstool:
+	echo "No Build Wireless!"
+wirelesstool_clean:
+	echo "No Clean Wireless!"	
+endif
+###########################################################################
+#Build iwprivget
+iwprivget:
+	$(call BspAppMake, $(BSP_API_IWPRIVGET_DIR), all, iwprivget)
+	if test -e $(BSP_API_IWPRIVGET_DIR)/iwprivget; \
+	then echo "Compile iwprivget success"; \
+	else echo "Compile iwprivget error!"; exit 1; \
+	fi
+
+iwprivget_clean:
+	$(call BspAppMake, $(BSP_API_IWPRIVGET_DIR), clean)
+###########################################################################
+#Build portbindcmd
+portbindcmd:
+	echo "Building portbindcmd"
+	$(call BspAppMake, $(APP_BSP_PORTBIND_DIR), all, portbindcmd)
+	if test -e $(APP_BSP_PORTBIND_DIR)/portbindcmd; \
+	then echo "Compile portbindcmd success"; \
+	else echo "Compile portbindcmd error!"; exit 1; \
+	fi
+
+portbindcmd_clean:
+	echo "Clean portbindcmd"
+	$(call BspAppMake, $(APP_BSP_PORTBIND_DIR), clean)
+###########################################################################	
+ethtool:
+	echo "Build ethtool"
+	$(MAKE) -C $(APP_BSP_ETHTOOL_DIR)
+	if test -e $(APP_BSP_ETHTOOL_DIR)/ethtool; \
+	then echo "Compile ethtool success"; \
+	else echo "Compile ethtool error!"; exit 1; \
+	fi
+	#cp  $(APP_BSP_ETHTOOL_DIR)/ethtool  $(FILESYSTEM_DIR)/usr/bin/
+	$(call BspAppUsrBinInstall, $(APP_BSP_ETHTOOL_DIR), ethtool)
+
+	
+ethtool_clean:
+	echo "Clean ethtool"
+	$(MAKE) -C $(APP_BSP_ETHTOOL_DIR) clean
+###########################################################################	
+#Build wappd daemon
+wappd:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files/* $(BSP_INT_FS)/usr/etc/
+	
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files/* $(BSP_EXT_FS)/usr/etc/
+	
+
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd success"; \
+	else echo "Compile wappd error!"; exit 1; \
+	fi
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wapp)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wappctrl)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), libwapp_usr_intf_client.a)
+	$(call EcntBSPReleaseInstall,$(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/, *, $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files)
+
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+endif
+
+endif
+
+wappd_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+endif
+
+#Build wappd_v2 daemon
+wappd_v2:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd_v2"
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd_v2 success"; \
+	else echo "Compile wappd_v2 error!"; exit 1; \
+	fi
+
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+
+endif
+
+wappd_v2_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd_v2"
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+
+
+#Build wappd_r2 daemon
+wappd_r2:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd_r2"
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd_r2 success"; \
+	else echo "Compile wappd_r2 error!"; exit 1; \
+	fi
+	
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+endif
+
+wappd_r2_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd_r2"
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+###########################################################################	
+
+###########################################################################	
+linuxptp:
+ifneq ($(strip $(TCSUPPORT_ECNT_1588v2)),)
+	echo "Building Linux PTP package"
+	$(call BspAppMake, $(BSP_APP_LINUXPTP_DIR), all, ptp4l)
+	if test -e $(BSP_APP_LINUXPTP_DIR)/ptp4l; \
+		then echo "Compile ethtool success"; \
+		else echo "Compile ethtool error!"; exit 1; \
+	fi
+	$(call BspAppUsrBinInstall, $(BSP_APP_LINUXPTP_DIR), ptp4l)
+	$(call BspAppUsrBinInstall, $(BSP_APP_LINUXPTP_DIR), pmc)
+	$(call BspAppUsrBinInstall, $(BSP_APP_LINUXPTP_DIR), phc2sys)
+else
+	echo "Building Linux PTP package: do nothing"
+endif
+
+linuxptp_clean:
+ifneq ($(strip $(TCSUPPORT_ECNT_1588v2)),)
+	echo "Clean linuxptp"
+	$(call BspAppMake, $(BSP_APP_LINUXPTP_DIR), clean)
+else
+	echo "Clean linuxptp: do nothing"
+endif
+###########################################################################
+
+###########################################################################
+ecnt_sys: ecnt_mmc
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Build ecnt_sys"
+	$(call BspAppMake, $(APP_BSP_PRIVATEDIR)/ecnt_sys, all, ecnt_sys)
+	if test -e $(APP_BSP_PRIVATEDIR)/ecnt_sys/ecnt_sys; \
+	then echo "Compile ecnt_sys success"; \
+	else echo "Compile ecnt_sys error!"; exit 1; \
+	fi
+
+	$(call BspAppUsrBinInstall, $(APP_BSP_PRIVATEDIR)/ecnt_sys, ecnt_sys)
+endif
+ecnt_sys_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Clean ecnt_sys"
+	$(call BspAppMake, $(APP_BSP_PRIVATEDIR)/ecnt_sys, clean)
+endif
+###########################################################################
+
+###########################################################################
+prepare_devgen:
+	$(RM) $(PROJECT_APP_DIR)/devgen.sh
+	$(MAKE) -f $(APP_BSP_DEVGEN)/make_devgen devgen_gen
+
+prepare_devgen_clean:
+	$(RM) $(PROJECT_APP_DIR)/devgen.sh
+###########################################################################	
+
+###########################################################################	
+libgmp:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Build libgmp"
+	cd $(BSP_APP_GMP_DIR) && ./configure --host=aarch64-linux-gnu --prefix=/lib
+	$(MAKE) -C $(BSP_APP_GMP_DIR)
+	$(MAKE) -C $(BSP_APP_GMP_DIR) DESTDIR=$(BSP_APP_GMP_DIR)/result install
+	cp $(BSP_APP_GMP_DIR)/result/lib/lib/libgmp.so $(FILESYSTEM_DIR)/lib
+	cp $(BSP_APP_GMP_DIR)/result/lib/lib/libgmp.so.10 $(FILESYSTEM_DIR)/lib
+	cp $(BSP_APP_GMP_DIR)/result/lib/lib/libgmp.so.10.5.0 $(FILESYSTEM_DIR)/lib
+endif
+libgmp_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Clean libgmp"
+	$(MAKE) -C $(BSP_APP_GMP_DIR) clean
+	rm -rf $(FILESYSTEM_DIR)/lib/lib/libgmp.so
+	rm -rf $(FILESYSTEM_DIR)/lib/lib/libgmp.so.10
+	rm -rf $(FILESYSTEM_DIR)/lib/lib/libgmp.so.10.5.0
+endif
+strongswan:libgmp
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Build strongswan"
+	cd $(BSP_APP_STRONGSWAN_DIR) && chmod 777 configure && touch aclocal.m4
+	cd $(BSP_APP_STRONGSWAN_DIR) && ./configure --host=aarch64-linux-gnu --prefix=/usr/strongswan --sysconfdir=/tmp/strongswan/etc \
+	--with-lib-prefix=$(BSP_APP_GMP_DIR)/result/lib CFLAGS="-I$(BSP_APP_GMP_DIR)/result/lib/include" LDFLAGS="-L$(BSP_APP_GMP_DIR)/result/lib/lib"
+	$(MAKE) -C $(BSP_APP_STRONGSWAN_DIR)
+	$(MAKE) -C $(BSP_APP_STRONGSWAN_DIR) DESTDIR=$(BSP_APP_STRONGSWAN_DIR)/result install
+	cp -rf $(BSP_APP_STRONGSWAN_DIR)/result/usr/strongswan $(BSP_EXT_FS)
+	cp -rf $(BSP_APP_STRONGSWAN_DIR)/result/tmp/strongswan/etc $(BSP_EXT_FS)/strongswan
+endif
+strongswan_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	echo "Clean strongswan"
+	rm -rf $(BSP_APP_STRONGSWAN_DIR)/result
+	rm -rf $(FILESYSTEM_DIR)/usr/strongswan
+endif
+###########################################################################
+
+###########################################################################
+
+rng:
+ifneq ($(strip $(RDKB_BUILD)),)
+	chmod -R 777 $(BSP_APP_SYSFSUTIL_2_1_0)
+	chmod -R 777 $(BSP_APP_RNG_TOOL)
+	cd $(BSP_APP_SYSFSUTIL_2_1_0)/ && ./configure --host=arm-linux --prefix=$(BSP_APP_SYSFSUTIL_2_1_0)/install
+	$(MAKE) -C $(BSP_APP_SYSFSUTIL_2_1_0)
+	$(MAKE) -C $(BSP_APP_SYSFSUTIL_2_1_0) install
+	
+	cd $(BSP_APP_RNG_TOOL)/ && ./autogen.sh && ./configure LDFLAGS="-L$(BSP_APP_SYSFSUTIL_2_1_0)/install/lib" CPPFLAGS="-I$(BSP_APP_SYSFSUTIL_2_1_0)/install/include" --host=arm-linux  --prefix=$(BSP_APP_RNG_TOOL)/install --without-libgcrypt --without-nistbeacon
+	$(MAKE) -C $(BSP_APP_RNG_TOOL)
+	$(MAKE) -C $(BSP_APP_RNG_TOOL) install
+	cp $(BSP_APP_SYSFSUTIL_2_1_0)/install/lib/libsysfs.so.2 $(BSP_EXT_LIB)
+	cp $(BSP_APP_RNG_TOOL)/install/sbin/rngd $(BSP_EXT_FS_USR)
+	cp $(BSP_APP_RNG_TOOL)/install/bin/rngtest $(BSP_EXT_FS_USR)
+endif
+rng_clean:
+ifneq ($(strip $(RDKB_BUILD)),)
+	- $(MAKE) -C $(BSP_APP_RNG_TOOL)/ clean
+	- $(MAKE) -C $(BSP_APP_SYSFSUTIL_2_1_0) clean
+	echo "Clean rng"
+endif
+###########################################################################

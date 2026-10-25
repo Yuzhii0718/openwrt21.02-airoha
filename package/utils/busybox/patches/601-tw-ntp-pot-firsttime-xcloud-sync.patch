@@ -1,0 +1,61 @@
+--- a/networking/ntpd.c
++++ a/networking/ntpd.c
+@@ -109,6 +109,7 @@
+ #include <math.h>
+ #include <netinet/ip.h> /* For IPTOS_DSCP_AF21 definition */
+ #include <sys/timex.h>
++#include "dai/dai.h"
+ #ifndef IPTOS_DSCP_AF21
+ # define IPTOS_DSCP_AF21 0x48
+ #endif
+@@ -119,7 +120,8 @@
+  * production level setting.
+  */
+ #define MAX_VERBOSE     3
+-
++#define FIRSTTIME "/tmp/first_time"
++#define INTERNETACCOK "/tmp/internetaccok"
+ 
+ /* High-level description of the algorithm:
+  *
+@@ -890,7 +892,8 @@ add_peers(const char *s, key_entry_t *key_entry)
+ 	peer_t *p;
+ 
+ 	p = xzalloc(sizeof(*p) + strlen(s));
+-	strcpy(p->p_hostname, s);
++	//strcpy(p->p_hostname, s);
++	UTIL_STRNCPY(p->p_hostname, s, strlen(s)+1);
+ 	p->p_fd = -1;
+ 	p->p_xmt_msg.m_status = MODE_CLIENT | (NTP_VERSION << 3);
+ 	p->next_action_time = G.cur_time; /* = set_next(p, 0); */
+@@ -1158,6 +1161,7 @@ step_time(double offset)
+ 	strftime_YYYYMMDDHHMMSS(buf, sizeof(buf), &tval);
+ 	bb_info_msg("setting time to %s.%06u (offset %+fs)", buf, (unsigned)tvn.tv_usec, offset);
+ 	//maybe? G.FREQHOLD_cnt = 0;
++	dai_sysSetPotNtptime();
+ 
+ 	/* Correct various fields which contain time-relative values: */
+ 
+@@ -2670,7 +2674,8 @@ int ntpd_main(int argc UNUSED_PARAM, char **argv)
+ 	struct pollfd *pfd;
+ 	peer_t **idx2peer;
+ 	unsigned cnt;
+-
++	int count_flag = 0;
++	
+ 	memset(&G, 0, sizeof(G));
+ 	SET_PTR_TO_GLOBALS(&G);
+ 
+@@ -2731,6 +2736,12 @@ int ntpd_main(int argc UNUSED_PARAM, char **argv)
+ 					if (G.poll_exp < BIGPOLL)
+ 						adjust_poll(MINPOLL);
+ 					timeout = poll_interval(NOREPLY_INTERVAL);
++					count_flag++;
++					if(count_flag > 3 && (0 != access(FIRSTTIME, F_OK)) && (0 == access(INTERNETACCOK, F_OK)))
++					{
++						system("/sbin/ntpdXcloudTimeStamp.sh &");
++						count_flag=0;
++					}
+ 					bb_error_msg("timed out waiting for %s, reach 0x%02x, next query in %us",
+ 							p->p_dotted, p->reachable_bits, timeout);
+ 

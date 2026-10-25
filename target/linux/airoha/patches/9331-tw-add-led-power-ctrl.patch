@@ -1,0 +1,80 @@
+--- a/drivers/leds/led-class.c
++++ b/drivers/leds/led-class.c
+@@ -73,6 +73,59 @@
+ }
+ static DEVICE_ATTR_RO(max_brightness);
+ 
++static ssize_t power_ctl_store(struct device *dev,
++        struct device_attribute *attr, const char *buf, size_t size)
++{
++    struct led_classdev *led_cdev = dev_get_drvdata(dev);
++    unsigned long state;
++    ssize_t ret;
++
++    mutex_lock(&led_cdev->led_access);
++    
++    if (led_sysfs_is_disabled(led_cdev)) {
++        ret = -EBUSY;
++        goto unlock;
++    }
++
++    ret = kstrtoul(buf, 10, &state);
++    if (ret)
++        goto unlock;
++    
++    switch(state)
++    {
++    case 0:
++        led_cdev->flags |= LED_SUSPENDED;
++        led_set_brightness_nopm(led_cdev, 0);
++        break;
++    case 1:
++        led_cdev->flags |= LED_SUSPENDED;
++        led_set_brightness_nopm(led_cdev, 1);
++        break;
++    case 2:
++        led_cdev->flags &= ~LED_SUSPENDED;
++        led_set_brightness_nopm(led_cdev, led_cdev->brightness);
++        break;
++    default:
++        break;
++    }
++    led_cdev->state = state;
++    ret = size;
++
++unlock:
++    mutex_unlock(&led_cdev->led_access);
++    return ret;
++}
++
++static ssize_t power_ctl_show(struct device *dev,
++        struct device_attribute *attr, char *buf)
++{
++    struct led_classdev *led_cdev = dev_get_drvdata(dev);
++
++    return sprintf(buf, "%u\n", led_cdev->state);
++}
++
++static DEVICE_ATTR_RW(power_ctl);
++
+ #ifdef CONFIG_LEDS_TRIGGERS
+ static DEVICE_ATTR(trigger, 0644, led_trigger_show, led_trigger_store);
+ static struct attribute *led_trigger_attrs[] = {
+@@ -87,6 +140,7 @@
+ static struct attribute *led_class_attrs[] = {
+ 	&dev_attr_brightness.attr,
+ 	&dev_attr_max_brightness.attr,
++	&dev_attr_power_ctl.attr,
+ 	NULL,
+ };
+ 
+--- a/include/linux/leds.h
++++ b/include/linux/leds.h
+@@ -59,6 +59,7 @@
+ 	const char		*name;
+ 	enum led_brightness	 brightness;
+ 	enum led_brightness	 max_brightness;
++	int			 state;
+ 	int			 flags;
+ 
+ 	/* Lower 16 bits reflect status */

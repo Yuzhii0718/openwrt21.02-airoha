@@ -1,0 +1,6 @@
+
+config rae
+        option RaeEnable '0'
+        option RaeVersion 'V1.5.1.8'
+        option RaeStage 'prod'
+        option TermsOfServiceVersion 'V2.0'

@@ -1,0 +1,13 @@
+config ARCH_ECONET
+	bool "ECONET ARM SoC Platforms"
+	select ARM_GIC
+	select ARM_GIC_V3
+	select HAVE_ALIGNED_STRUCT_PAGE
+	select ARM_AMBA
+	select HAVE_PATA_PLATFORM
+	select HAVE_DEBUG_BUGVERBOSE
+	select ARM_DMA_USE_IOMMU
+	select HAVE_ARM_ARCH_TIMER
+	select IOMMU_DMA
+	help
+		Support for ECONET ARM SoC Platforms

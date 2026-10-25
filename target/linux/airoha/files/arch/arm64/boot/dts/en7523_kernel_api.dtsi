@@ -1,0 +1,67 @@
+
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/thermal/thermal.h>
+
+
+/ {
+	compatible = "econet,en7523";
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	i2c@1fbf8000 {
+		compatible = "airoha,airoha-i2c";
+		reg = <0x1fbf8000 0x65>;
+		clock-frequency = <400000>;
+	};
+
+	airoha-trng@1faa1000 {
+		compatible = "airoha,airoha-trng";
+		reg = <0x1faa1000 0xc04>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+	};
+	uart1: serial@1fbf0000 {
+		compatible = "ns8250";
+		reg = <0x1fbf0000 0x30>;
+		reg-io-width = <4>;
+		reg-shift = <2>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <1843200>;
+		status = "okay";
+	};
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
+			polling-delay-passive = <200>;
+			polling-delay = <1000>;
+			thermal-sensors = <&thermal_phy 0>;
+			trips {
+				cpu_passive: cpu-passive {
+					temperature = <105000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&cpu_passive>;
+					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+	thermal_phy: thermal_phy@1efbd000 {
+		#thermal-sensor-cells = <0>;
+		compatible = "airoha,en7523-thermal_phy";		
+		reg = <0x1efbd000 0x0fff>; //ptp_thermal_ctrl
+		int_name = "ptp_therm";
+	};
+	crypto_eip93@1fb70000 {
+		compatible = "airoha,airoha-eip93";
+		reg = <0x1fb70000 0x804>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;			
+	};
+
+};

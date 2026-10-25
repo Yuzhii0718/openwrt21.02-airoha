@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+# (C) 2013 openwrt.org
+
+START=99
+
+start() {
+    echo "insmod CpuPower.ko"
+    insmod /lib/modules/5.4.55/CpuPower.ko
+
+    echo "insmod thermal.ko"
+    insmod /lib/modules/5.4.55/thermal.ko
+}
+
+stop() {
+        echo "Stopping"
+}

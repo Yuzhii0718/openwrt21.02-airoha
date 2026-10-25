@@ -1,0 +1,222 @@
+--- a/flash_api.c
++++ b/flash_api.c
+@@ -3,10 +3,13 @@
+ #include <stdlib.h>
+ #include <string.h>
+ #include <unistd.h>
++#include <errno.h>
+ #include <sys/ioctl.h>
++#include <sys/stat.h>
++#include <dirent.h>
+ #include <linux/types.h>
+-#include "../../config/autoconf.h"
+-#include <linux/autoconf.h>
++//#include "../../config/autoconf.h"
++//#include <linux/autoconf.h>
+ 
+ #if defined (CONFIG_RALINK_RT6855A) || defined (CONFIG_RALINK_MT7621) || defined (CONFIG_ARCH_MT7623)
+ #define NO_WIFI_SOC
+@@ -14,19 +17,19 @@
+ 
+ #if ! defined (CONFIG_MTK_EMMC_SUPPORT)
+ struct mtd_info_user {
+-	u_char type;
+-	u_int32_t flags;
+-	u_int32_t size;
+-	u_int32_t erasesize;
+-	u_int32_t oobblock;
+-	u_int32_t oobsize;
+-	u_int32_t ecctype;
+-	u_int32_t eccsize;
++	unsigned char type;
++	unsigned int flags;
++	unsigned int size;
++	unsigned int erasesize;
++	unsigned int oobblock;
++	unsigned int oobsize;
++	unsigned int ecctype;
++	unsigned int eccsize;
+ };
+ 
+ struct erase_info_user {
+-	u_int32_t start;
+-	u_int32_t length;
++	unsigned int start;
++	unsigned int length;
+ };
+ 
+ #define MEMGETINFO	_IOR('M', 1, struct mtd_info_user)
+@@ -39,12 +42,97 @@
+ #endif
+ #endif
+ 
++/*
++ * UBI-variant support: on UBI-based layouts the factory/NVRAM data lives in
++ * UBI volumes instead of raw MTD partitions. libnvram historically looked the
++ * data up by the MTD partition names "Factory" and "facenv"; map those onto
++ * the UBI volume names used by the production image and access them through
++ * the matching /dev/ubiblock0_<vol_id> block device.
++ */
++static const char *ubi_vol_for(const char *name)
++{
++	if (strstr(name, "acenv"))		/* facenv -> areaconf */
++		return "areaconf";
++	if (strstr(name, "actory"))		/* Factory -> factory */
++		return "factory";
++	return name;
++}
++
++/* Set when ubi_vol_open() refused a write because the ubiblock device is
++ * read-only, so that flash_write() can stay quiet about the expected failure.
++ * The explanatory message is printed only once per process.
++ */
++static int ubi_write_refused;
++static int ubi_ro_warned;
++
++static int ubi_vol_open(const char *volname, int flags)
++{
++	/* UBI sysfs is normally at /sys/class/ubi; keep the devices path as a
++	 * fallback for kernels that do not create the class symlinks.
++	 */
++	static const char *const base_dirs[] = {
++		"/sys/class/ubi/ubi0",
++		"/sys/devices/virtual/ubi/ubi0",
++		NULL
++	};
++	char syspath[192], devpath[80], vname[160];
++	struct dirent *de;
++	DIR *d;
++	int fd, n, id, i;
++
++	for (i = 0; base_dirs[i]; i++) {
++		d = opendir(base_dirs[i]);
++		if (!d)
++			continue;
++		while ((de = readdir(d))) {
++			if (sscanf(de->d_name, "ubi0_%d", &id) != 1)
++				continue;
++			snprintf(syspath, sizeof(syspath),
++				 "%s/ubi0_%d/name", base_dirs[i], id);
++			if ((fd = open(syspath, O_RDONLY)) < 0)
++				continue;
++			n = read(fd, vname, sizeof(vname) - 1);
++			close(fd);
++			if (n <= 0)
++				continue;
++			vname[n] = '\0';
++			if (vname[n - 1] == '\n')
++				vname[n - 1] = '\0';
++			if (!strcmp(vname, volname)) {
++				snprintf(devpath, sizeof(devpath),
++					 "/dev/ubiblock0_%d", id);
++				closedir(d);
++				fd = open(devpath, flags);
++				if (fd < 0 && (flags & (O_WRONLY | O_RDWR))) {
++					int saved = errno;
++
++					ubi_write_refused = 1;
++					if (!ubi_ro_warned) {
++						ubi_ro_warned = 1;
++						fprintf(stderr,
++							"libnvram: UBI volume \"%s\" (%s) is read-only (ubiblock); writes are not supported\n",
++							volname, devpath);
++					}
++					errno = saved;
++				}
++				return fd;
++			}
++		}
++		closedir(d);
++	}
++	fprintf(stderr,
++		"libnvram: UBI volume \"%s\" not found (no matching /dev/ubiblock0_*)\n",
++		volname);
++	return -1;
++}
++
+ int mtd_open(const char *name, int flags)
+ {
+ 	FILE *fp;
+ 	char dev[80];
+ 	int i, ret;
+ 
++	ubi_write_refused = 0;
+ 	if ((fp = fopen("/proc/mtd", "r"))) {
+ 		while (fgets(dev, sizeof(dev), fp)) {
+ 			if (sscanf(dev, "mtd%d:", &i) && strstr(dev, name)) {
+@@ -59,7 +147,8 @@
+ 		}
+ 		fclose(fp);
+ 	}
+-	return -1;
++	/* UBI variant: data is in a UBI volume exposed as a ubiblock device */
++	return ubi_vol_open(ubi_vol_for(name), flags);
+ }
+ 
+ int flash_read_mac(char *buf)
+@@ -122,21 +211,21 @@
+ #else
+ 	struct mtd_info_user info;
+ 
+-	fd = mtd_open("Config", O_RDONLY);
++	fd = mtd_open("facenv", O_RDONLY);
+ 	if (fd < 0) {
+ 		fprintf(stderr, "Could not open mtd device\n");
+ 		return -1;
+ 	}
+ 
+-	if (ioctl(fd, MEMGETINFO, &info)) {
+-		fprintf(stderr, "Could not get mtd device info\n");
+-		close(fd);
+-		return -1;
+-	}
+-	if (len > info.size) {
+-		fprintf(stderr, "Too many bytes - %d > %d bytes\n", len, info.erasesize);
+-		close(fd);
+-		return -1;
++	/* MEMGETINFO only succeeds on raw MTD; skip the size check for a
++	 * ubiblock-backed UBI volume (unknown ioctl -> ENOTTY).
++	 */
++	if (!ioctl(fd, MEMGETINFO, &info)) {
++		if (len > info.size) {
++			fprintf(stderr, "Too many bytes - %d > %d bytes\n", len, info.erasesize);
++			close(fd);
++			return -1;
++		}
+ 	}
+ 
+ 	lseek(fd, from, SEEK_SET);
+@@ -174,15 +263,30 @@
+ 	struct mtd_info_user info;
+ 	struct erase_info_user ei;
+ 
+-	fd = mtd_open("Config", O_RDWR | O_SYNC);
++	fd = mtd_open("facenv", O_RDWR | O_SYNC);
+ 	if (fd < 0) {
+-		fprintf(stderr, "Could not open mtd device\n");
++		/*
++		 * On the UBI layout the factory/NVRAM volumes are read-only, so a
++		 * refused write is the expected outcome rather than an error: stay
++		 * quiet (ubi_vol_open() has already explained the reason once).
++		 */
++		if (!ubi_write_refused)
++			fprintf(stderr, "Could not open mtd device\n");
+ 		return -1;
+ 	}
+ 
++	/*
++	 * UBI layout: the factory/NVRAM volumes (areaconf=facenv, factory=Factory)
++	 * are factory-provisioned, read-only data. They are exposed through
++	 * ubiblock, which opens the UBI volume UBI_READONLY and rejects write
++	 * requests with -EROFS, so partial sector writes are impossible by design.
++	 * Refuse the write instead of pretending to succeed. (A mutable FENV field
++	 * would need a read-modify-write of the whole volume via ubiupdatevol(8);
++	 * that is deliberately not wired up - these volumes are read-only.)
++	 */
+ 	if (ioctl(fd, MEMGETINFO, &info)) {
+-		fprintf(stderr, "Could not get mtd device info\n");
+ 		close(fd);
++		errno = EROFS;
+ 		return -1;
+ 	}
+ 	if (len > info.size) {

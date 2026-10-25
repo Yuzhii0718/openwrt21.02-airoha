@@ -1,0 +1,209 @@
+diff -Nuarp old/linux-ecnt/include/uapi/linux/foe_hook.h new/linux-ecnt/include/uapi/linux/foe_hook.h
+--- /include/uapi/linux/foe_hook.h	2024-08-19 16:49:45.187102000 +0800
++++ /include/uapi/linux/foe_hook.h	2024-09-11 21:08:35.357074000 +0800
+@@ -26,6 +26,8 @@ struct ShortCutSpeedInfo{
+ 	void *        out_dev;              /* shortcut app packet dest device */
+ 	unsigned char mac_header[ETH_HLEN];
+ 	unsigned char ip_header[IP_HLEN];
++	unsigned long isppp;
++	unsigned long last_tx;
+ };
+ 
+ #ifndef IFNAMSIZ
+diff -Nuarp old/linux-ecnt/net/core/ecnt_net_core.h new/linux-ecnt/net/core/ecnt_net_core.h
+--- /net/core/ecnt_net_core.h	2024-08-19 16:49:52.167125000 +0800
++++ /net/core/ecnt_net_core.h	2025-04-09 20:08:03.664482000 +0800
+@@ -604,14 +604,24 @@ static inline int ecnt_dev_queue_xmit_in
+     }
+ 	if(!isEN751221)
+ 	{
+-		/*only sk_fullsock sock check shortcut_sk*/
+-	    if(skb->sk && sk_fullsock(skb->sk) && skb->sk->sk_shortcut_info.shortcut_sk == 1
+-	        && skb->dev && ((!strncmp(skb->dev->name, "eth0.", 5)) || (!strncmp(skb->dev->name, "ra", 2))))
+-	    {
++	    if(skb->sk && sk_fullsock(skb->sk) && skb->sk->sk_shortcut_info.shortcut_sk == 1 
++	        && skb->dev && (skb->sk->sk_shortcut_info.shortcut_speed==0) 
++	        &&(isLANInterface(skb->dev) || isWiFiInterface(skb->dev) ||(!strncmp(skb->dev->name, "nas", 3)) ||(!strncmp(skb->dev->name, "eth1", 4)) ||(!strncmp(skb->dev->name, "apcli", 5)) || isXSIInterface(skb->dev)))
++	    {   
+ 	        skb->sk->sk_shortcut_info.out_dev = skb->dev;
+ 	        memcpy(skb->sk->sk_shortcut_info.mac_header, skb->data, ETH_HLEN);
+ 	        memcpy(skb->sk->sk_shortcut_info.ip_header, skb->data + ETH_HLEN, sizeof(struct iphdr));
+-	        skb->sk->sk_shortcut_info.shortcut_speed = 1;			
++	        skb->sk->sk_shortcut_info.shortcut_speed = 1;
++			skb->sk->sk_shortcut_info.last_tx = jiffies;
++	    }else if(skb->sk && sk_fullsock(skb->sk) && skb->sk->sk_shortcut_info.shortcut_sk == 1 
++	        && skb->dev && (skb->sk->sk_shortcut_info.shortcut_speed==0) 
++	        &&(!strncmp(skb->dev->name, "ppp", 3)))
++	    {   
++	        skb->sk->sk_shortcut_info.out_dev = skb->dev;
++	        memcpy(skb->sk->sk_shortcut_info.ip_header, skb->data, sizeof(struct iphdr));
++	        skb->sk->sk_shortcut_info.shortcut_speed = 1;
++			skb->sk->sk_shortcut_info.isppp = 1;
++			skb->sk->sk_shortcut_info.last_tx = jiffies;
+ 	    }
+ 	}
+ 	ECNT_CORE_DEV_HOOK(ECNT_DEV_QUE_XMIT, skb);
+diff -Nuarp old/linux-ecnt/net/ecnt_net.h new/linux-ecnt/net/ecnt_net.h
+--- /net/ecnt_net.h	2024-08-19 16:49:52.215098000 +0800
++++ /net/ecnt_net.h	2024-09-11 21:20:13.010029000 +0800
+@@ -66,6 +66,21 @@ static inline int ecnt_sock_create_inlin
+ 	}
+ #endif
+ 
++	if (ecnt_shortcut_app_list_check(current->comm))
++    {
++        sock->sk->sk_shortcut_info.shortcut_sk = 1;
++        sock->sk->sk_shortcut_info.shortcut_speed = 0;
++		sock->sk->sk_shortcut_info.isppp= 0;
++        sock->sk->sk_shortcut_info.out_dev = NULL;
++    }
++    else
++    {
++        sock->sk->sk_shortcut_info.shortcut_sk = 0;
++        sock->sk->sk_shortcut_info.shortcut_speed = 0;
++		sock->sk->sk_shortcut_info.isppp= 0;
++        sock->sk->sk_shortcut_info.out_dev = NULL;	
++    }
++	
+ 	return ECNT_CONTINUE;
+ }
+ 
+@@ -76,12 +91,14 @@ static inline int ecnt_sock_accept4_inli
+     {
+         sock->sk->sk_shortcut_info.shortcut_sk = 1;
+         sock->sk->sk_shortcut_info.shortcut_speed = 0;
++		sock->sk->sk_shortcut_info.isppp= 0;
+         sock->sk->sk_shortcut_info.out_dev = NULL;		
+     }
+     else
+     {
+         sock->sk->sk_shortcut_info.shortcut_sk = 0;
+         sock->sk->sk_shortcut_info.shortcut_speed = 0;
++		sock->sk->sk_shortcut_info.isppp= 0;
+         sock->sk->sk_shortcut_info.out_dev = NULL;	
+     }
+ 	return ECNT_CONTINUE;
+diff -Nuarp old/linux-ecnt/net/ipv4/ecnt_net_ipv4.h new/linux-ecnt/net/ipv4/ecnt_net_ipv4.h
+--- /net/ipv4/ecnt_net_ipv4.h	2024-08-19 16:49:52.246097000 +0800
++++ /net/ipv4/ecnt_net_ipv4.h	2024-10-12 19:49:28.222551000 +0800
+@@ -18,6 +18,8 @@
+ #include <ecnt_hook/ecnt_hook_tso.h>
+ #endif 
+ 
++static inline int ecnt_dp_tcpudp_transmit_skb_inline_hook(struct sk_buff *skb, int tcpudp);
++
+ static inline int ecnt_do_ip_setsockopt_inline_hook
+ (struct sock *sk, int level, struct inet_sock *inet,
+ int optname, char __user *optval, unsigned int optlen, int *err)
+@@ -331,21 +333,26 @@ static inline int sambaTxShortCut(struct
+ #endif
+ extern int ShortCutTxSpeedCnt0;
+ extern int ShortCutTxSpeedCnt1;
+-static inline int ecnt_shortcut_tx(struct sk_buff *skb)
++static inline int ecnt_shortcut_tx(struct sk_buff *skb, int tcpudp)
+ {
+ 	struct iphdr *iph = NULL;
+ 	skb->protocol = htons(ETH_P_IP);
+-	/*add layer3 header*/	
+-	skb_push(skb, sizeof(struct iphdr));
+-	skb_reset_network_header(skb);
+-	memcpy(skb->data, skb->sk->sk_shortcut_info.ip_header, sizeof(struct iphdr));
++	/*add layer3 header*/
++	if(0 == tcpudp){
++		skb_push(skb, sizeof(struct iphdr));
++		skb_reset_network_header(skb);
++		memcpy(skb->data, skb->sk->sk_shortcut_info.ip_header, sizeof(struct iphdr));
++	}
+ 	iph = ip_hdr(skb);
+ 	iph->tot_len = htons(skb->len);
+-	/*add layer2 header*/	
+-	skb_push(skb, ETH_HLEN);
+-	skb_reset_mac_header(skb);
+-	memcpy(skb->data, skb->sk->sk_shortcut_info.mac_header, ETH_HLEN);	
+-
++	
++	if(!skb->sk->sk_shortcut_info.isppp){
++		/*add layer2 header*/	
++		skb_push(skb, ETH_HLEN);
++		skb_reset_mac_header(skb);
++		memcpy(skb->data, skb->sk->sk_shortcut_info.mac_header, ETH_HLEN);	
++	}
++	
+ 	skb->dev = (struct net_device *)(skb->sk->sk_shortcut_info.out_dev);
+ 	/*if is 7526, localout use short cut; if 7528, localout use half hwnat and tso; */
+ #if !defined(TCSUPPORT_TSO_ENABLE)
+@@ -366,9 +373,11 @@ static inline int ecnt_shortcut_tx(struc
+ 	}
+ 	return 0;
+ }
+-static inline int ecnt_tcp_transmit_skb_inline_hook(struct sk_buff *skb)
++static inline int ecnt_dp_tcpudp_transmit_skb_inline_hook(struct sk_buff *skb, int tcpudp)
+ {
+-	int ret;
++	int ret=0;
++	unsigned long last_tx = 0;
++	
+ #if defined(TCSUPPORT_TSO_ENABLE)
+ 	if(skb->tso_mark & TSO_ENABLE_MARK)
+ 	{
+@@ -397,9 +406,10 @@ static inline int ecnt_tcp_transmit_skb_
+ 	}
+ #endif
+ 	/*only fullsock sock check shortcut_sk*/
++	/*
+     if(skb->sk && sk_fullsock(skb->sk) && skb->sk->sk_shortcut_info.shortcut_sk == 1)
+     {
+-        /* this samba flow has speed up, has learn mac & IP */
++        // this samba flow has speed up, has learn mac & IP 
+         if(skb->sk->sk_shortcut_info.shortcut_speed && skb->sk->sk_shortcut_info.out_dev)
+         {
+             ShortCutTxSpeedCnt0++;
+@@ -412,6 +422,48 @@ static inline int ecnt_tcp_transmit_skb_
+         }
+     }
+ 	return ECNT_HOOK_ERROR; 
++	*/
++	
++	if(skb->sk && sk_fullsock(skb->sk) && skb->sk->sk_shortcut_info.shortcut_sk == 1)
++	{
++		if(skb->len > 1480){
++			ShortCutTxSpeedCnt1++;
++		}
++			
++		if(!ra_sw_nat_hook_sendto_ppe)
++		{
++			return ECNT_HOOK_ERROR;
++		}
++		/* this flow has speed up, has learn mac & IP */
++		if(skb->sk->sk_shortcut_info.shortcut_speed && skb->sk->sk_shortcut_info.out_dev)
++		{
++
++			last_tx = skb->sk->sk_shortcut_info.last_tx;
++			skb->sk->sk_shortcut_info.last_tx = jiffies; // if not xmit for long time, go slow path to avoid iptables drop
++			if(jiffies > last_tx+100)
++			{
++				return ECNT_HOOK_ERROR;
++			}
++			ShortCutTxSpeedCnt0++;
++			if (unlikely(skb_headroom(skb) < sizeof(struct iphdr)+ETH_HLEN)) {
++				struct sk_buff *skb2 = skb_realloc_headroom(skb, sizeof(struct iphdr)+ETH_HLEN);
++				if (skb2 == NULL) {
++					printk(KERN_ERR, "Vlan:failed to realloc headroom\n");
++					return 0;
++				}
++				if (likely(skb->sk))
++					skb_set_owner_w(skb2, skb->sk);
++				consume_skb(skb);
++				skb = skb2;
++			}	
++			skb->shortcut_on_speed = 1;
++			return ecnt_shortcut_tx(skb, tcpudp);
++		}
++	}else
++	{
++		skb->shortcut_on_speed = 0;
++	}
++	return ECNT_HOOK_ERROR; 
+ }
+ 
+ static inline int ecnt_tcp_close_inline_hook(struct sock *sk)

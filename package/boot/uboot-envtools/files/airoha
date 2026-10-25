@@ -1,0 +1,14 @@
+. /lib/uboot-envtools.sh
+#
+# airoha UBI: the U-Boot environment lives in the "ubootenv" UBI volume, which
+# the 10_ubiblock_tw preinit hook exposes as /dev/ubiblock0_<vol_id>. Resolve
+# the volume id by name and register it with uboot-envtools so that
+# /etc/fw_env.config (and thus fw_printenv/fw_setenv) is generated.
+#
+for d in /sys/class/ubi/ubi0/ubi0_*; do
+	[ -e "$d/name" ] || continue
+	[ "$(cat "$d/name" 2>/dev/null)" = "ubootenv" ] || continue
+	id=${d##*/ubi0_}
+	ubootenv_add_uci_config "/dev/ubiblock0_$id" "0x0" "0x40000" "0x40000" "1"
+	break
+done

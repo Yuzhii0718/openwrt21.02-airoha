@@ -1,0 +1,38 @@
+--- a/mt_wifi_ap/Makefile	2026-10-22 20:07:05.012727365 +0800
++++ b/mt_wifi_ap/Makefile	2026-10-22 20:07:05.022411529 +0800
+@@ -198,8 +198,11 @@
+ # support built-in/ko for Openwrt/Linux SDK
+ obj-$(CONFIG_MT_WIFI) += $(MOD_NAME).o
+ 
+-ifeq ($(CONFIG_CPE_SUPPORT),y)
+-# To avoid build issue "/bin/sh: Argument list too long", merge multi-objs to one
++# The final link of this module lists 860+ object files, which exceeds
++# MAX_ARG_STRLEN (128K): "/bin/sh: Argument list too long". MTK only merges
++# obj_common into a single object on CONFIG_CPE_SUPPORT builds; do it always
++# so the module links on a host with the default limit. Compile flags are
++# unchanged, only the link granularity differs.
+ cmm_objs := $(patsubst %,$(M)/%,$(obj_common))
+ $(M)/$(PARENT_DIR)/cmm_objs.o: $(cmm_objs)
+ 	$(LD) -r -o $@ $^
+@@ -217,21 +220,6 @@
+ 	$(obj_dvt)\
+ 	$(obj_profiles)\
+ 	$(PARENT_DIR)/cmm_objs.o
+-else
+-$(MOD_NAME)-objs := \
+-	$(obj_ap)\
+-	$(obj_ate)\
+-	$(obj_chips)\
+-	$(obj_common)\
+-	$(obj_feature)\
+-	$(obj_hif)\
+-	$(obj_hw_ctrl)\
+-	$(obj_os)\
+-	$(obj_sta)\
+-	$(obj_protocol)\
+-	$(obj_dvt)\
+-	$(obj_profiles)
+-endif
+ 
+ #
+ #  openWRT

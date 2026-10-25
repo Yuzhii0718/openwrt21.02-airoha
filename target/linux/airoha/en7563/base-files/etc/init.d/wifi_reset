@@ -1,0 +1,27 @@
+#!/bin/sh /etc/rc.common
+
+STOP=91
+
+USE_PROCD=1
+
+wifi_reset=6
+
+shutdown() {
+	echo "7563 reset KITE wifi (gpio${wifi_reset})" > /dev/console
+	# mount sysfs back to make /sys/class/gpio avaliable
+	mount -t sysfs none /sys
+	echo ${wifi_reset} > /sys/class/gpio/export
+	if [ $? != 0 ]
+	then
+		echo "reset KITE wifi fail (gpio${wifi_reset} resource busy)" > /dev/console
+	else
+		echo "7563 reset KITE wifi (gpio${wifi_reset})" > /dev/console
+		echo out > /sys/class/gpio/gpio${wifi_reset}/direction
+		echo 0 > /sys/class/gpio/gpio${wifi_reset}/value
+		sleep 1
+		echo 1 > /sys/class/gpio/gpio${wifi_reset}/value
+		echo ${wifi_reset} > /sys/class/gpio/unexport
+		sleep 1
+		echo "reset KITE wifi done (gpio${wifi_reset})" > /dev/console
+	fi
+}

@@ -1,0 +1,9 @@
+#!/usr/bin/env lua
+
+package.path = '/lib/wifi/?.lua;'..package.path
+
+local mtkdat = require("mtkdat")
+local nixio = require("nixio")
+
+mtkdat.uci2dat()
+nixio.syslog("debug", "tw uci2dat!")

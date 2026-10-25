@@ -1,0 +1,63 @@
+#!/bin/sh /etc/rc.common
+# (C) 2013 openwrt.org
+
+START=91
+STOP=92
+
+#Common macros
+UCI_SET="uci set"
+UCI_COMMIT="uci commit"
+
+#eip93 setting
+set_eip93(){
+	    eip93_irq=$(cat /proc/interrupts | grep crypto_eip93 | awk '{print $1}' | tr -d ":")
+        if [ -n "$eip93_irq" ]; then
+            echo 2 > /proc/irq/$eip93_irq/smp_affinity
+        fi
+}
+
+#This set the seperate mac for eth0
+set_individual_mac_for_ethernet_interface(){
+        ethmac0=`ifconfig eth0 | grep HWaddr | awk '{ print $5 }'`
+        add="${ethmac0:15:2}"
+        addr=$(printf "%02X\n" $((0x${add})))
+        addr1=$(printf "%02X\n" $((0x${add}+0x1)))
+        ethmac="${ethmac0:0:2}:${ethmac0:3:2}:${ethmac0:6:2}:${ethmac0:9:2}:${ethmac0:12:2}:${addr}"
+        ethmac1="${ethmac0:0:2}:${ethmac0:3:2}:${ethmac0:6:2}:${ethmac0:9:2}:${ethmac0:12:2}:${addr1}"
+        macaddr=`$UCI_GET wireless.mt7603e.macaddr`
+        if [[ "$macaddr" != "$ethmac" ]]; then
+                $UCI_SET wireless.mt7603e.macaddr=$ethmac
+                $UCI_COMMIT
+        fi
+
+        macaddr=`$UCI_GET wireless.mt7613e.macaddr`
+        if [[ "$macaddr" != "$ethmac1" ]]; then
+                $UCI_SET wireless.mt7613e.macaddr=$ethmac1
+                $UCI_COMMIT
+        fi
+
+}
+
+
+start() {
+        /sbin/ethernet_init
+        set_individual_mac_for_ethernet_interface
+    set_eip93
+
+    # Need to enable TCSUPPORT_ARM_SECURE_BOOT at profile
+    if [ -f "/proc/tc3162/secure_boot_check_key" ]; then
+        echo "create secure_upgrade device"
+        mknod /dev/secure_upgrade c 160 0
+    fi
+	
+	echo "mknod /dev/ipsec c 266 0"
+    mknod /dev/ipsec c 266 0
+		
+	echo 512 > /proc/sys/net/netfilter/nf_conntrack_expect_max
+	
+}
+
+stop() {
+        echo "Stopping"
+}
+

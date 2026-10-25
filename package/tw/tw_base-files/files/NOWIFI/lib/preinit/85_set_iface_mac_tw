@@ -1,0 +1,18 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+
+preinit_set_mac_address() {
+	echo "preinit set_mac_address"
+	local mac=`envctl factory get mac`
+
+	if [ -n "$mac" ]; then
+		mac=`printf "%012x" "0x$mac"`
+		mac=${mac:0:12}
+
+		local lan_mac="${mac:0:2}:${mac:2:2}:${mac:4:2}:${mac:6:2}:${mac:8:2}:${mac:10:2}"
+
+		uci set network.lan.macaddr=$lan_mac
+	fi
+}
+boot_hook_add preinit_main preinit_set_mac_address

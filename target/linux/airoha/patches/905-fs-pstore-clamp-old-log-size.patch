@@ -1,0 +1,20 @@
+--- a/fs/pstore/ram_core.c
++++ b/fs/pstore/ram_core.c
+@@ -296,8 +296,17 @@
+ 	size_t start = buffer_start(prz);
+ 
+ 	if (!size)
+ 		return;
+ 
++	/*
++	 * Both values come from stale DDR content and may have been corrupted
++	 * by a previous crash. A bogus "start" larger than "size" underflows
++	 * the length computed below and makes memcpy_fromio() fault, so drop
++	 * the record instead of trusting it.
++	 */
++	if (size > prz->buffer_size || start > size)
++		return;
++
+ 	if (!prz->old_log) {
+ 		persistent_ram_ecc_old(prz);
+ 		prz->old_log = kmalloc(size, GFP_KERNEL);

@@ -1,0 +1,11 @@
+--- a/net/ipv6/mcast.c
++++ b/net/ipv6/mcast.c
+@@ -1030,6 +1030,8 @@ bool ipv6_chk_mcast_addr(struct net_devic
+ 	return rv;
+ }
+ 
++EXPORT_SYMBOL(ipv6_chk_mcast_addr);
++
+ static void mld_gq_start_timer(struct inet6_dev *idev)
+ {
+ 	unsigned long tv = prandom_u32() % idev->mc_maxdelay;

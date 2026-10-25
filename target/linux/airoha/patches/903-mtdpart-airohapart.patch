@@ -1,0 +1,10 @@
+--- old/drivers/mtd/mtdpart.c	2023-09-25 12:03:49.700553000 +0800
++++ new/drivers/mtd/mtdpart.c	2023-09-25 12:04:07.399556000 +0800
+@@ -887,6 +887,7 @@
+ static const char * const default_mtd_part_types[] = {
+ 	"cmdlinepart",
+ 	"ofpart",
++	"airohapart",
+ 	NULL
+ };
+ 

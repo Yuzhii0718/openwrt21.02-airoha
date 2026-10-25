@@ -1,0 +1,86 @@
+diff --git a/net/samba4/files/samba.init b/net/samba4/files/samba.init
+index b849a1c..2116676 100644
+--- a/net/samba4/files/samba.init
++++ b/net/samba4/files/samba.init
+@@ -206,13 +206,13 @@ start_service() {
+ 		procd_close_instance
+ 	else
+ 		# start fileserver daemon
+-		procd_open_instance
+-		procd_set_param command /usr/sbin/smbd -F
+-		procd_set_param nice "$nice_value"
+-		procd_set_param respawn
+-		procd_set_param file /etc/samba/smb.conf
+-		procd_set_param limits nofile=16384
+-		procd_close_instance
++		#procd_open_instance
++		#procd_set_param command /usr/sbin/smbd -F
++		#procd_set_param nice "$nice_value"
++		#procd_set_param respawn
++		#procd_set_param file /etc/samba/smb.conf
++		#procd_set_param limits nofile=16384
++		#procd_close_instance
+ 
+ 		# start netbios daemon
+ 		if [ "$DISABLE_NETBIOS" -ne 1 ] && [ -x /usr/sbin/nmbd ]; then
+diff --git a/net/samba4/files/smb.conf.template b/net/samba4/files/smb.conf.template
+index ebc18e3..a2767fe 100644
+--- a/net/samba4/files/smb.conf.template
++++ b/net/samba4/files/smb.conf.template
+@@ -13,7 +13,7 @@
+ 
+ 	## disable core dumps
+ 	enable core files = no
+-
++	netbios aliases = mywifiext
+ 	## set security (auto, user, domain, ads)
+ 	security = user
+ 
+diff --git a/net/samba4/patches/011-samba-4-14-disable-python-module-host-check.patch b/net/samba4/patches/011-samba-4-14-disable-python-module-host-check.patch
+new file mode 100755
+index 0000000..ee84f77
+--- /dev/null
++++ b/net/samba4/patches/011-samba-4-14-disable-python-module-host-check.patch
+@@ -0,0 +1,15 @@
++--- a/python/wscript
+++++ b/python/wscript
++@@ -73,9 +73,9 @@ def configure(conf):
++         for module, package in selftest_pkgs.items():
++             find_third_party_module(conf, module, package)
++ 
++-    if not Options.options.without_ad_dc:
++-        for module, package in ad_dc_pkgs.items():
++-            find_third_party_module(conf, module, package)
+++#    if not Options.options.without_ad_dc:
+++#       for module, package in ad_dc_pkgs.items():
+++#           find_third_party_module(conf, module, package)
++ 
++ 
++ def build(bld):
+diff --git a/net/samba4/patches/200-tw-dump-new-hostname.patch b/net/samba4/patches/200-tw-dump-new-hostname.patch
+new file mode 100755
+index 0000000..9ccb400
+--- /dev/null
++++ b/net/samba4/patches/200-tw-dump-new-hostname.patch
+@@ -0,0 +1,21 @@
++--- a/source3/nmbd/nmbd_incomingrequests.c
+++++ b/source3/nmbd/nmbd_incomingrequests.c
++@@ -235,7 +235,17 @@ IP %s on subnet %s\n", nmb_namestr(question), inet_ntoa(from_ip), subrec->subnet
++ 
++ 	if (!group) {
++ 		/* Unique name. */
++-
+++		if (!question->scope[0])
+++		{
+++			fstring host_name;
+++			char buf[256] = {0};
+++
+++			pull_ascii_fstring(host_name, question->name);
+++			snprintf(buf, sizeof(buf), "ubus send new_host_name '{\"ip_addr\":\"%s\", \"host_name\":\"%s\"}'",
+++			inet_ntoa(from_ip), host_name);
+++			system(buf);
+++		}
+++		
++ 		if( (namerec != NULL)
++ 				&& ( (namerec->data.source == SELF_NAME)
++ 				|| (namerec->data.source == PERMANENT_NAME)

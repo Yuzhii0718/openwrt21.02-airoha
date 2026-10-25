@@ -1,0 +1,14 @@
+Index: hostapd-2022-07-29-b704dc72/src/drivers/driver_nl80211_scan.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/src/drivers/driver_nl80211_scan.c
++++ hostapd-2022-07-29-b704dc72/src/drivers/driver_nl80211_scan.c
+@@ -412,7 +412,8 @@
+ 	drv->scan_state = SCAN_REQUESTED;
+ 	/* Not all drivers generate "scan completed" wireless event, so try to
+ 	 * read results after a timeout. */
+-	timeout = drv->uses_6ghz ? 15 : 10;
++	//timeout = drv->uses_6ghz ? 15 : 10;
++	timeout = drv->uses_6ghz ? 25 : 20;
+ 	if (drv->scan_complete_events) {
+ 		/*
+ 		 * The driver seems to deliver events to notify when scan is

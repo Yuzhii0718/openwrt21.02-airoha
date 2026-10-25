@@ -1,0 +1,92 @@
+#!/bin/sh /etc/rc.common
+START=82
+STOP=01
+#USE_PROCD=1
+
+set_if_empty() {
+    SYM="$1"
+    
+    # read value, make sure d2d is up.
+    until VAL=$(d2 -s ${SYM}); do sleep .1; done
+    if [ "${VAL}empty" == "empty" ]; 
+    then
+        d2 -c ${SYM} -- "$2"; 
+    fi
+}
+
+start_service() {
+	# Start d2
+	local factory_mode=`envctl factory get factory_mode`
+	if [ "$factory_mode" == "off" ]; then
+		# We may need to chmod following in future.
+		mkdir -p /tmp/d2
+
+		# TODO:
+		# We should source a config file that defines where R/W
+		# filesystem is mounted.
+		# Hard-coded for now
+		PERSISTDIR=/tmp/dal/d2d
+
+		mkdir -p ${PERSISTDIR}
+
+		#BETA_XTRA="-d /etc/d2" //will be use in future if required for qa env
+
+		#d2d ${BETA_XTRA} ${PERSISTDIR} &
+
+		d2d ${PERSISTDIR} &
+
+
+		#set some default value
+
+		# This is must for all the SKU those are going to use this script. As the router boots up internet should be Unknown until ODM will detect any # network connectivity on the target machine. Do not remove the below line without any further discussion with DAL Team.
+
+		# Also the General table in DAL is persistence. So it will always have the latest value whatever it has before the reboot. So to make sure it
+		# always reset to default as "Unknown" after the router boots up.
+
+		d2 -c general.internetstatus Unknown
+		d2 -c general.DeviceModel "`protest --model -r | head -n 1 | awk -F '!' '{print $2}'`"
+		d2 -c general.DeviceName "`protest --model -r | head -n 1 | awk -F '!' '{print $2}'`"
+		d2 -c dalmoduleversion.RELEASEVersion "`cat /etc/version.txt`"
+		d2 -c general.fsn "`protest --sn -r | head -n 1 | awk -F '!' '{print $2}'`"
+		# Commenting general.region as "artmtd" CLI is specific to Qualcomm based SKU so will not be applicable for other SKUs		
+		#        d2 -c general.region "`artmtd -r region|head -1 |cut -d 'x' -f 2-`"
+		d2 -c general.defaultmac "`uci get system.@system[0].basemac`"
+		d2 -c general.wan_ifname         "br-lan"
+		d2 -c general.lan_ifname         "br-lan"
+
+		# ODMSTOP ORBI  
+		/bin/sh /usr/sbin/d2_countryname.sh &
+		d2 -c general.portNumberHttp		  "80"
+		d2 -c general.portNumberHttps	      "443"
+		d2 -c general.Manufacturer            "T&W"
+		d2 -c general.HwRevision              "V1.0"
+		d2 -c general.FwRevision              "`uci get system.@system[0].softVersion`"
+		d2 -c general.SKU                     "`protest --region -r | head -n 1 | awk -F '!' '{print $2}'`"
+		#d2 -c general.DILTableupgradestatus   "`uci get dal.dilTableUpgradeStatus`"
+		d2 -c general.GatewayMAC              "`uci get system.@system[0].basemac`"
+		d2 -c general.GatewayIP               "`uci get network.lan.twgateway`"
+		d2 -c general.DNSIP                   "`uci get network.lan.twdns`"
+		d2 -c general.NetworkAddress          "`uci get network.lan.twnetmask`"
+		d2 -c general.InternetIP              "`uci get network.lan.twipaddr`"     
+		d2 -c general.RegionName              "`protest --region -r | head -n 1 | awk -F '!' '{print $2}' | awk '{print tolower($0)}'`"
+		echo "Start d2d."
+	fi
+}
+
+stop_service() {
+        echo "Stop d2d."
+        killall d2d
+}
+
+boot() {
+    # ODMSTART ORBI
+    [ "`cat /tmp/orbi_type`" = "Satellite" ] && return
+    # ODMSTOP ORBI        
+    start_service
+}
+
+restart() {
+        stop_service
+        start_service
+}
+

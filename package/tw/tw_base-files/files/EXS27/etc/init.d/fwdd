@@ -1,0 +1,43 @@
+#!/bin/sh /etc/rc.common
+
+START=10
+STOP=10
+USE_PROCD=1
+
+start_service() {
+        fwdMode=`uci -q get wireless.2g_5g.forwardMode`
+        ethifName=`uci -q get network.lan.ifname`
+        apclimlo=`uci -q get wireless.stamld2.disabled`
+		
+        if [ "$apclimlo" = "0" ] ; then
+            return
+        fi
+		
+        if [ "x$ethifName" = "x" ] ; then
+            ethifName="eth1"
+        fi
+        if [ "$fwdMode" == "2.4G" ]; then
+            fwdIf="2G"
+        else
+            fwdIf="5G"
+        fi
+
+        procd_open_instance
+        procd_set_param respawn
+        procd_set_param command /usr/bin/fwdd -d1 -e $ethifName $fwdIf
+        procd_close_instance
+}
+
+stop_service() {
+        #killall -15 fwdd
+        procd_kill fwdd
+}
+
+start() {
+        start_service $@
+}
+
+
+stop() {
+        stop_service $@
+}

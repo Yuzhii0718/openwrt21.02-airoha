@@ -1,0 +1,21 @@
+Index: mtfwd/mtfwd.c
+===================================================================
+--- mtfwd.orig/mtfwd.c
++++ mtfwd/mtfwd.c
+@@ -593,6 +593,16 @@ unsigned int fwd_hook_local_out(unsigned
+ 		else if (pos->d_dev == outdev)
+ 			p_dst = pos;
+ 
++///zzzz
++#if 1
++        if ((ntohs(hdr->h_proto) == 0x26) && ((0 == memcmp(outdev->name, "apclii0", 7)) || (0 == memcmp(outdev->name, "apcli0", 6)))) {
++            //DBGPRINT(DBG_LVL_WARN, ("DROP-local out, send pkt on %s, DA:%pM, SA:%pM; type:%x\n",
++            //                        outdev->name, hdr->h_dest, hdr->h_source, ntohs(hdr->h_proto)));
++            rcu_read_unlock();
++            return NF_DROP;
++        }
++#endif
++
+ 		if (p_src && p_dst && p_src->d_dev != p_dst->d_dev) {
+ 			/*drop redundant bc/mc pkt in dbdc mode.*/
+ 			if (unlikely(hdr->h_dest[0]&1)) {

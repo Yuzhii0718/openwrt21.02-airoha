@@ -1,0 +1,40 @@
+#!/bin/sh
+# This script is sourced by udhcpc's dhcp.script at every DHCP event.
+
+linkAp="$(uci -q get network.lan.linkrootap)"
+lanproto="$(uci -q get network.lan.proto)"
+if [ "$lanproto" == "dhcp" ]; then
+	brIp="$(uci -q get network.lan.twipaddr)"
+	brGw="$(uci -q get network.lan.twgateway)"
+else
+	brIp="$(uci -q get network.lan.ipaddr)"
+	brGw="$(uci -q get network.lan.gateway)"
+fi
+
+
+case "$1" in
+    deconfig)
+		if [ "$INTERFACE" = "lan" ]; then
+			ifconfig br-lan $brIp
+		fi
+		if [ "$linkAp" == 0 ]; then
+			echo 2 > /proc/br_dns_hijack
+			ebtables  -t filter -D INPUT -p IPv4 --ip-protocol 17 --ip-destination-port 67 -j DROP
+		else
+			if [ "$linkAp" == 9 ]; then
+				echo 2 > /proc/br_dns_hijack
+			fi
+		fi
+    ;;
+    renew|bound)
+        #wan ip change
+		echo "dhcp renew device:$INTERFACE ip:$ip"
+		if [ "$INTERFACE" = "lan" ]; then
+			if [ -f "/tmp/testDhcp" ]; then
+				ifconfig br-lan $brIp
+			else
+				ifconfig br-lan $ip
+			fi
+		fi
+    ;;
+esac

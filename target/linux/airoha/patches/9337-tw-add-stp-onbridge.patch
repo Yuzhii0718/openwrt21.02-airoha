@@ -1,0 +1,69 @@
+--- a/net/bridge/br_if.c
++++ b/net/bridge/br_if.c
+@@ -27,6 +27,7 @@
+ #include "br_private.h"
+ #include "ecnt_br.h"
+ 
++extern int apclixStpFlag;
+ /*
+  * Determine initial path cost based on speed.
+  * using recommendations from 802.1d standard
+@@ -679,6 +680,11 @@
+ 
+ 	br_ifinfo_notify(RTM_NEWLINK, NULL, p);
+ 
++	if (strcmp(dev->name, "apclii0") == 0)
++	{
++		apclixStpFlag = 1;
++	}
++
+ 	if (changed_addr)
+ 		call_netdevice_notifiers(NETDEV_CHANGEADDR, br->dev);
+ 
+@@ -726,6 +732,11 @@
+ 	 */
+ 	del_nbp(p);
+ 
++	if (strcmp(dev->name, "apclii0") == 0)
++	{
++		apclixStpFlag = 0;
++	}
++
+ 	br_mtu_auto_adjust(br);
+ 	br_set_gso_limits(br);
+ 
+--- a/net/bridge/br_stp_bpdu.c
++++ b/net/bridge/br_stp_bpdu.c
+@@ -26,6 +26,8 @@
+ 
+ #define LLC_RESERVE sizeof(struct llc_pdu_un)
+ 
++int apclixStpFlag = 0;
++
+ static int br_send_bpdu_finish(struct net *net, struct sock *sk,
+ 			       struct sk_buff *skb)
+ {
+@@ -181,6 +183,23 @@
+ 		goto out;
+ 	}
+ 
++	if (apclixStpFlag)
++	{
++		if (strcmp(p->dev->name, "apcli0") == 0)
++		{
++			struct net_bridge_port *p2;
++			list_for_each_entry(p2, &br->port_list, list) 
++			{
++				if (strcmp(p2->dev->name, "apclii0") == 0)
++				{
++					if (p2->state != BR_STATE_BLOCKING)
++					{
++						goto out;
++					}
++				}
++			}
++		}
++	}
+ 	buf = skb_pull(skb, 3);
+ 
+ 	if (buf[0] == BPDU_TYPE_CONFIG) {

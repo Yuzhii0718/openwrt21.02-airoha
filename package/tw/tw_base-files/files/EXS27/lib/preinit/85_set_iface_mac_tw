@@ -1,0 +1,56 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+
+set_device_mac_addr()
+{
+	local config="$1"
+	local dev="$2"
+	local lan_mac="$3"
+	local ifname 
+	
+	config_get ifname "$config" name
+	if [ "$ifname" = "$dev" ]; then
+		uci_set network "$config" macaddr $lan_mac
+	fi
+}
+
+preinit_set_mac_address() {
+	echo "preinit set_mac_address"
+	local mac=`envctl factory get mac`
+	local ethif=$(uci get network.lan.ifname)
+	if [ "x$ethif" = "x" ] ; then
+		ethif="eth1"
+	fi
+
+	if [ -n "$mac" ]; then
+		mac=`printf "%012x" "0x$mac"`
+		mac=${mac:0:12}
+		local mac_sn_num=`printf "%d" "0x${mac:6:6}"`
+
+		local mac_vendor="${mac:0:2}:${mac:2:2}:${mac:4:2}"
+		local lan_mac="${mac:0:2}:${mac:2:2}:${mac:4:2}:${mac:6:2}:${mac:8:2}:${mac:10:2}"
+
+		mac_sn_num=$(($mac_sn_num+1))
+		local mac_sn=`printf "%06x" $mac_sn_num`
+		local wifi_2g_mac="$mac_vendor:${mac_sn:0:2}:${mac_sn:2:2}:${mac_sn:4:2}"
+
+		mac_sn_num=$(($mac_sn_num+1))
+		mac_sn=`printf "%06x" $mac_sn_num`
+		local wifi_5g_mac="$mac_vendor:${mac_sn:0:2}:${mac_sn:2:2}:${mac_sn:4:2}"
+
+		#if [ -n "$lan_mac" ] ; then
+		#	config_load network
+		#	config_foreach set_device_mac_addr device $ethif $lan_mac
+		#fi
+
+		uci set network.lan.macaddr=$lan_mac
+		uci set wireless.MT7992_1_1.macAddr=$wifi_2g_mac
+		uci set wireless.MT7992_1_2.macAddr=$wifi_5g_mac
+		twuci2dat
+	else
+		twuci2dat
+	fi
+
+}
+boot_hook_add preinit_main preinit_set_mac_address

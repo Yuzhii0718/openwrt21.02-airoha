@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+# (C) 2013 openwrt.org
+
+START=19
+
+start() {
+	echo "mknod /dev/serdes_cfg c 267 0"	
+    mknod /dev/serdes_cfg c 267 0
+
+	echo "/bin/sh /etc/hsgmii_init.sh &"
+	/bin/sh /etc/hsgmii_init.sh
+}
+
+stop() {
+        echo "Stopping"
+}

@@ -1,0 +1,22 @@
+# Copyright (C) 2006 OpenWrt.org
+
+config SoftImage0 'SoftImage0'
+	option Version	'ECNT-SW-V1.0'
+	option Committed	1
+	option Active	1
+	option Valid	1
+
+config SoftImage1 'SoftImage1'
+	option Version	'ECNT-SW-V1.0'
+	option Committed	0
+	option Active	0
+	option Valid	1
+
+config ONU 'ONU'
+	option EmergencyState 0
+	option MaxPorts 9
+	option PortList1 '48,237,47,47,47,47,49,32,32'
+	option StrictPPTPEthUniSlot 1
+	
+config common 'common'
+	option OMCI_SoftWare_Image_State 'SOFTWARE_IMAGE_STATE_S0_0'

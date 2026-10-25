@@ -1,0 +1,140 @@
+Index: linux-5.4.55/drivers/block/fitblk.c
+===================================================================
+--- linux-5.4.55.orig/drivers/block/fitblk.c
++++ linux-5.4.55/drivers/block/fitblk.c
+@@ -45,6 +45,7 @@
+ #include <linux/types.h>
+ #include <linux/libfdt.h>
+ #include <linux/mtd/mtd.h>
++#include <linux/mtd/ubi.h>
+ #include <linux/root_dev.h>
+ #include <uapi/linux/fitblk.h>
+ 
+@@ -252,8 +253,9 @@ static int add_fit_subimage_device(struc
+ 
+ 	disk->major = 0;
+ 	disk->first_minor = 0;
+-	disk->minors = 1;
+-	disk->flags = bdev->bd_disk->flags | GENHD_FL_NO_PART_SCAN;
++	disk->minors = 0;
++	disk->flags = bdev->bd_disk->flags | GENHD_FL_NO_PART_SCAN |
++		      GENHD_FL_EXT_DEVT;
+ 	disk->fops = &fitblk_fops;
+ 	disk->private_data = fitblk;
+ 	if (readonly) {
+@@ -643,11 +645,66 @@ static int fitblk_match_devname(struct d
+ 	return ret;
+ }
+ 
++/*
++ * Robust alternative to 'rootdisk-devname': match the lower block device by the
++ * name of the UBI volume it is backed by (e.g. "fit"). This is independent of
++ * the volume's numeric ID, which shifts with the on-flash UBI layout, so the
++ * mapping no longer depends on a hardcoded "ubiblock<N>_<volid>" string.
++ * Requires the 'rootdisk' phandle target to carry a 'volname' property.
++ */
++static int fitblk_match_volname(struct device *dev, const void *data)
++{
++	const char *volname = data;
++	struct block_device *bdev;
++	struct gendisk *gd;
++	struct ubi_volume_desc *desc;
++	struct ubi_volume_info vi;
++	int ubi_num, vol_id;
++	int ret = 0;
++
++	if (!dev->devt)
++		return 0;
++
++	bdev = blkdev_get_by_dev(dev->devt, FMODE_READ, NULL);
++	if (IS_ERR(bdev))
++		return 0;
++
++	gd = bdev->bd_disk;
++	if (gd && sscanf(gd->disk_name, "ubiblock%d_%d", &ubi_num, &vol_id) == 2) {
++		desc = ubi_open_volume(ubi_num, vol_id, UBI_READONLY);
++		if (!IS_ERR(desc)) {
++			ubi_get_volume_info(desc, &vi);
++			if (vi.name && !strcmp(vi.name, volname))
++				ret = 1;
++			ubi_close_volume(desc);
++		}
++	}
++
++	blkdev_put(bdev, FMODE_READ);
++
++	return ret;
++}
++
+ static int fitblk_probe(struct platform_device *pdev)
+ {
+ 	struct device *dev;
++	const char *volname = NULL;
+ 
+ 	if (rootdisk) {
++		/*
++		 * Prefer matching by UBI volume name (from the 'volname' property
++		 * of the 'rootdisk' phandle target): immune to the volume's
++		 * numeric ID shifting with the flash layout, so this no longer
++		 * depends on a hardcoded "ubiblock<N>_<volid>" string.
++		 */
++		of_property_read_string(rootdisk, "volname", &volname);
++		if (volname) {
++			dev = class_find_device(&block_class, NULL, volname,
++						fitblk_match_volname);
++			if (dev)
++				return parse_fit_on_dev(dev);
++		}
++
+ 		dev = class_find_device(&block_class, NULL, rootdisk,
+ 					fitblk_match_of_node);
+ 		if (dev)
+@@ -679,6 +736,8 @@ static struct platform_driver fitblk_dri
+ 
+ static int __init fitblk_init(void)
+ {
++	int ret;
++
+ 	/* detect U-Boot firmware, optional: not all bootloaders provide it */
+ 	ubootver = of_get_property(of_chosen, "u-boot,version", NULL);
+ 
+@@ -695,10 +754,35 @@ static int __init fitblk_init(void)
+ 		return -ENODEV;
+ 
+ 	refcount_set(&num_devs, 1);
+-	pdev = platform_device_register_simple("fitblk", -1, NULL, 0);
+-	if (IS_ERR(pdev))
+-		return PTR_ERR(pdev);
++
++	/*
++	 * Allocate the platform device first and only add it afterwards, so the
++	 * global 'pdev' is already set when the (synchronous) probe runs inside
++	 * platform_device_add(). parse_fit_on_dev() dereferences 'pdev' to create
++	 * the "lower_dev" sysfs link; with platform_device_register_simple() the
++	 * probe fires before 'pdev' is assigned, causing a NULL deref/panic.
++	 */
++	pdev = platform_device_alloc("fitblk", -1);
++	if (!pdev)
++		return -ENOMEM;
++
++	ret = platform_device_add(pdev);
++	if (ret) {
++		platform_device_put(pdev);
++		pdev = NULL;
++		return ret;
++	}
+ 
+ 	return 0;
+ }
+-device_initcall(fitblk_init);
++/*
++ * Run as late_initcall_sync so the probe happens after ubi_init()
++ * (a late_initcall) has attached the UBI volume and created the ubiblock
++ * device. A plain -EPROBE_DEFER retry is NOT reliable here: registering a
++ * block device does not re-trigger the platform bus's deferred probe, and
++ * deferred_probe_initcall() runs before ubi_init(), so probing earlier
++ * would never find the ubiblock device and /dev/fit0 would never appear.
++ * At the same initcall level, sync runs after non-sync, so this is
++ * guaranteed to run after ubi_init().
++ */
++late_initcall_sync(fitblk_init);

@@ -1,0 +1,189 @@
+#!/bin/sh
+# Copyright (C) 2006-2016 OpenWrt.org
+# Copyright (C) 2010 Vertical Communications
+
+[ -z "$PREINIT" ] && exec /sbin/init
+
+export PATH="%PATH%"
+
+. /lib/functions.sh
+. /lib/functions/preinit.sh
+. /lib/functions/system.sh
+
+boot_hook_init preinit_essential
+boot_hook_init preinit_main
+boot_hook_init failsafe
+boot_hook_init initramfs
+boot_hook_init preinit_mount_root
+
+echo 32768 > /proc/net/skbmgr_driver_max_skb
+echo 16384 > /proc/net/skbmgr_limit
+echo 16384 > /proc/net/skbmgr_4k_limit
+
+PROFILE_CFG=/userfs/profile.cfg
+if [ -f "$PROFILE_CFG" ] ; then
+    . "$PROFILE_CFG"
+fi
+
+# Unified insmod helper: log and load a kernel module from the versioned
+# modules directory ONLY when the .ko file actually exists. This avoids
+# printing a misleading "insmod xxx.ko" message for modules that are not
+# present on the current variant/image (e.g. wifi modules on a nowifi build).
+insmod_ko() {
+    local mod="$1"; shift
+    local path="/lib/modules/5.4.55/$mod"
+    [ -f "$path" ] || return 0
+    echo "insmod $mod${*:+ $*}"
+    insmod "$path" "$@"
+}
+
+insmod_ko module_sel.ko
+
+if [ "$TCSUPPORT_KERNEL_API" != "" ] ;then
+    insmod_ko ecnt_legacy_api.ko
+else
+    insmod_ko tcledctrl.ko
+fi
+
+insmod_ko tccicmd.ko
+insmod_ko sif.ko
+insmod_ko fe_core.ko
+insmod_ko ifc.ko
+insmod_ko qdma_lan.ko
+
+# NPU driver (wired acceleration) is always needed. The wifi-offload
+# adapter (hostadpt) is only loaded when wifi offload is enabled.
+insmod_ko npu.ko
+if [ "$TCSUPPORT_NPU_WIFI_OFFLOAD" != "" ] ;then
+    insmod_ko hostadpt.ko
+fi
+
+insmod_ko eth.ko
+insmod_ko eth_ephy.ko
+insmod_ko qdma_wan.ko
+insmod_ko ecnt_swconfig.ko
+
+echo 1 > /proc/tc3162/vport_enable
+
+# WiFi drivers: only when WLAN is built into this image.
+if [ "$TCSUPPORT_WLAN" != "" ] ;then
+    if [ "$TCSUPPORT_WLAN_MT7915D" != "" ] ;then
+        insmod_ko mt7915_ap.ko
+    else
+        insmod_ko mt7603eap.ko
+        insmod_ko mt7663_ap.ko
+    fi
+    insmod_ko sw_rps_for_wifi.ko
+fi
+
+if [ "$TCSUPPORT_SWNAT" != "" ] ;then
+    insmod_ko mt_whnat.ko
+fi
+
+if [ "$TCSUPPORT_CPU_EN7523" != "" ] ;then
+    insmod_ko hw_nat.ko SRAM_FOE_NUM=7
+elif [ "$TCSUPPORT_MEMORY_SHRINK" != "" ] ;then
+    insmod_ko hw_nat.ko FOE_NUM=8
+else
+    insmod_ko hw_nat.ko FOE_NUM=16
+fi
+
+insmod_ko gre_hw_offload.ko
+insmod_ko l2tp_offload.ko
+insmod_ko pptp_offload.ko
+insmod_ko vxlan_hw_offload.ko
+
+# TSO: qdma_lan/qdma_wan compile the V1 implementation in-driver
+# (TCSUPPORT_TSO_ENABLE without TCSUPPORT_TSO_V2_ENABLE) and it already registers
+# /proc/tso_lan and /proc/tso_wan from tso_common.c. tso2.ko is the
+# TCSUPPORT_TSO_V2_ENABLE provider and calls the same tso_proc_init(), so loading
+# it next to V1 makes proc_register() warn about every node:
+#   proc_dir_entry '/proc/tso_lan' already registered
+# The two are mutually exclusive: only load tso2.ko when V1 did not claim the
+# nodes, i.e. when qdma was built for V2.
+if [ ! -e /proc/tso_lan ] && [ ! -e /proc/tso_wan ]; then
+    insmod_ko tso2.ko
+fi
+
+echo "secureupgrade.ko is intentionally not loaded"
+#insmod_ko secureupgrade.ko
+
+# 2.5G PHY (En8811H): only when Ethernet 8811 is enabled.
+if [ "$TCSUPPORT_ETHER_8811" != "" ] ;then
+    echo "an8811 start"
+
+    if [ "$TCSUPPORT_CPU_AN7552" != "" ];then
+        echo "7563 reset 8811"
+        echo 13 > /sys/class/gpio/export
+        echo out > /sys/class/gpio/gpio13/direction
+        echo 0 > /sys/class/gpio/gpio13/value
+        sleep 1
+        echo 1 > /sys/class/gpio/gpio13/value
+        echo 13 > /sys/class/gpio/unexport
+    fi
+
+    echo "check if dts of mdio-bus exist"
+    if [ ! -d "/proc/device-tree/mdio-bus/" ] ;then
+        echo "Error! please check the device tree file, whether mdio-bus is added "
+    fi
+
+    insmod_ko mdio_arht.ko
+    insmod_ko air_en8811h.ko
+    insmod_ko 8811_bbu_api.ko
+    echo "an8811 end"
+fi
+
+# WiFi reset GPIO release: only relevant when WLAN is built (the 8811 PHY
+# may be present on a nowifi board, so this must not live in the 8811 block).
+if [ "$TCSUPPORT_WLAN" != "" ] ;then
+    wifi_reset=6
+    echo "7563 release wifi_reset (gpio${wifi_reset})"
+    echo ${wifi_reset} > /sys/class/gpio/export
+    if [ $? != 0 ]
+    then
+        echo "7563 release wifi_reset fail (gpio${wifi_reset} resource busy)"
+        echo 0 > /tmp/wifi_reset_gpio${wifi_reset}
+    else
+        echo out > /sys/class/gpio/gpio${wifi_reset}/direction
+        echo 1 > /sys/class/gpio/gpio${wifi_reset}/value
+        echo ${wifi_reset} > /sys/class/gpio/unexport
+        echo 1 > /tmp/wifi_reset_gpio${wifi_reset}
+    fi
+fi
+
+# Active Ethernet WAN: only when enabled and the kernel exposes wan_2_5.
+if [ "$TCSUPPORT_ACTIVE_ETHERNET_WAN" != "" ] && [ -f "/proc/tc3162/wan_2_5" ]; then
+    insmod_ko ae_wan.ko wan_sel=0 ae_wan_itf=eth1
+fi
+
+# 2.5G LAN (HSGMII): only when the kernel exposes lan_2_5.
+if [ -f "/proc/tc3162/lan_2_5" ]; then
+    insmod_ko hsgmii_lan.ko
+fi
+
+for pi_source_file in /lib/preinit/*; do
+    . $pi_source_file
+done
+
+boot_run_hook preinit_essential
+
+pi_mount_skip_next=false
+pi_jffs2_mount_success=false
+pi_failsafe_net_message=false
+
+boot_run_hook preinit_main
+
+
+# WiFi EEPROM/calibration handling: only relevant when WLAN is built.
+if [ "$TCSUPPORT_WLAN" != "" ] ;then
+    /sbin/ecnt_wl_e2p_chk -a
+    sleep 1
+    if [ -f "/tmp/wifi_2g.bin" ]; then
+        echo "mv /tmp/wifi_2g.bin /etc/RT30xxEEPROM.bin"
+        mv /tmp/wifi_2g.bin /etc/RT30xxEEPROM.bin
+    fi
+    if [ -f "/tmp/wifi_5g.bin" ]; then
+        echo "mv /tmp/wifi_5g.bin /etc/Wireless/RT2860AP_AC/RT30xxEEPROM.bin"
+        mv /tmp/wifi_5g.bin /etc/Wireless/RT2860AP_AC/RT30xxEEPROM.bin
+    fi
+fi

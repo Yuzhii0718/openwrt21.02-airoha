@@ -1,0 +1,4 @@
+ifneq ($(strip $(REBUILDCODE)),)
+TRUNK_DIR= 
+endif
+RELEASE_PROFILE_DEFAULT=en7563

@@ -1,0 +1,97 @@
+#
+# Expose factory/NVRAM/U-Boot-env UBI volumes as block devices, give the
+# rootfs_data ubifs volume a stable device name, and keep fstools' rootdisk
+# driver from claiming the "rootfs_data" name.
+#
+# On the UBI layout the factory/NVRAM data lives in UBI volumes instead of raw
+# MTD partitions:
+#   - "areaconf"  -> libnvram FENV(@0x20000)/UENV(@0x40000)  (model/region/sn/...)
+#   - "factory"   -> libnvram Factory MAC(@0x2E)/NicConf(@0x34)
+#   - "ubootenv"  -> U-Boot environment (fw_printenv/fw_setenv)
+#   - "ubootenv2" -> redundant U-Boot environment copy
+# libnvram and uboot-envtools read these through the matching
+# /dev/ubiblock0_<vol_id> block devices, so create them here, before the
+# 83_*/84_*/85_*/86_* preinit hooks run envctl/fw_printenv.
+#
+# NOTE 1: this kernel is built without CONFIG_DEVTMPFS and the /dev nodes were
+# populated by "mdev -s" in the initramfs (i.e. before preinit). Block devices
+# created here therefore do NOT get a device node automatically - mknod them
+# explicitly from /sys/class/block/<name>/dev ("major:minor").
+#
+# NOTE 2: fstools' rootdisk driver (libfstools/rootdisk.c) answers
+# volume_find("rootfs_data") for ANY plain block device backing "/" that starts
+# with a squashfs superblock - which is exactly /dev/fit0 here. It then tries to
+# place the overlay on a loop device at the end of that disk and fails with
+# "unable to create loop device", so mount_root never reaches the real
+# rootfs_data UBI volume and falls back to tmpfs. That driver explicitly skips
+# devices whose name contains "mtdblock"/"ubiblock", and it locates the root
+# device with lstat()+S_ISBLK (symlinks are ignored). So: expose the root block
+# device under a /dev/ubiblock* name and turn /dev/fit0 into a symlink to it.
+# get_blockdev() then only sees the ubiblock-named node, the rootdisk driver
+# bails out, and volume_find("rootfs_data") falls through to the UBI driver,
+# letting mount_root mount the real rootfs_data as the overlay.
+#
+# "rootfs_data" also gets a stable symlink /dev/ubi0_rootfs_data ->
+# /dev/ubi0_<vol_id> (useful for referencing it by name).
+#
+# This file is sourced by /etc/preinit before 80_mount_root, so everything is in
+# place before mount_root runs.
+#
+expose_ubi_volumes()
+{
+	[ -d /sys/class/ubi/ubi0 ] || return 0
+	for d in /sys/class/ubi/ubi0/ubi0_*; do
+		[ -e "$d/name" ] || continue
+		name=$(cat "$d/name" 2>/dev/null)
+		id=${d##*/ubi0_}
+		echo "ubiblock_tw: UBI volume ubi0_$id = '$name'"
+		case "$name" in
+			factory|areaconf|ubootenv|ubootenv2)
+				if [ ! -e "/dev/ubiblock0_$id" ]; then
+					if ubiblock --create "/dev/ubi0_$id" 2>/dev/null; then
+						echo "ubiblock_tw: ubiblock created for '$name'"
+					else
+						echo "ubiblock_tw: ubiblock --create FAILED for '$name'"
+					fi
+				fi
+				# No devtmpfs: create the block device node ourselves.
+				if [ ! -e "/dev/ubiblock0_$id" ]; then
+					dev=$(cat "/sys/class/block/ubiblock0_$id/dev" 2>/dev/null)
+					if [ -n "$dev" ]; then
+						if mknod "/dev/ubiblock0_$id" b "${dev%%:*}" "${dev##*:}" 2>/dev/null; then
+							echo "ubiblock_tw: mknod /dev/ubiblock0_$id ($dev)"
+						else
+							echo "ubiblock_tw: mknod FAILED for /dev/ubiblock0_$id ($dev)"
+						fi
+					else
+						echo "ubiblock_tw: no /sys/class/block/ubiblock0_$id/dev"
+					fi
+				fi
+				;;
+			rootfs_data)
+				[ -e "/dev/ubi0_rootfs_data" ] || \
+					ln -sf "/dev/ubi0_$id" /dev/ubi0_rootfs_data
+				;;
+		esac
+	done
+
+	# See NOTE 2 above: hide the plain /dev/fit0 block node behind a
+	# /dev/ubiblock* name so the rootdisk driver does not claim "rootfs_data".
+	if [ -e /sys/class/block/fit0/dev ] && [ ! -L /dev/fit0 ]; then
+		rdev=$(cat /sys/class/block/fit0/dev 2>/dev/null)
+		if [ -n "$rdev" ]; then
+			[ -e /dev/ubiblock0_root ] || \
+				mknod /dev/ubiblock0_root b "${rdev%%:*}" "${rdev##*:}" 2>/dev/null
+			if [ -b /dev/ubiblock0_root ]; then
+				rm -f /dev/fit0
+				ln -sf /dev/ubiblock0_root /dev/fit0
+				echo "ubiblock_tw: /dev/fit0 -> /dev/ubiblock0_root ($rdev)"
+			else
+				echo "ubiblock_tw: mknod /dev/ubiblock0_root FAILED ($rdev)"
+			fi
+		fi
+	fi
+	return 0
+}
+
+boot_hook_add preinit_main expose_ubi_volumes

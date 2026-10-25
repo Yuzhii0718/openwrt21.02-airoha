@@ -1,0 +1,47 @@
+
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/dts-v1/;
+
+#include "en7523.dtsi"
+
+/ {
+	compatible = "econet,en7523", "airoha,en7523";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	gpio@1fbf0200 {
+		compatible = "econet,ecnt-gpio";
+		reg = <0x1fbf0200 0x80>;
+	};
+	i2c@1fbf8000 {
+		compatible = "econet,ecnt-i2c";
+		reg = <0x1fbf8000 0x65>;	
+	};
+	uart1: serial@1fbf0000 {
+		compatible = "econet,ecnt-uart1";
+		reg = <0x1fbf0000 0x30>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		//status = "disabled";
+	};
+	thermal_phy: thermal_phy@1efbd000 {
+		compatible = "econet,ecnt-thermal_phy";		
+		reg = <0x1efbd000 0x0fff>; //ptp_thermal_ctrl
+		interrupts = <GIC_SPI 23 IRQ_TYPE_LEVEL_HIGH>;	// ptp_therm INT 7+16
+		int_name = "ptp_therm";
+	};
+	trng@1faa1000 {
+		compatible = "econet,ecnt-trng";
+		reg = <0x1faa1000 0xc04>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;			
+	};
+	crypto_k@1fb70000 {
+		compatible = "econet,ecnt-crypto_k";
+		reg = <0x1fb70000 0x804>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;			
+	};
+};

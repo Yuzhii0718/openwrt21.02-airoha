@@ -1,0 +1,82 @@
+--- a/nvram_env.h
++++ b/nvram_env.h
+@@ -13,71 +13,21 @@
+ 
+ static block_t fb[FLASH_BLOCK_NUM+EXTEND_BLOCK_NUM] =
+ {
+-#ifdef CONFIG_DUAL_IMAGE
++	/* Recovered from the prebuilt nvram_env.o: the two blocks it carries are
++	 * "FENV" at 0x20000 and "UENV" at 0x40000, 32 KB each. */
+ 	{
+-		.name = "uboot",
+-		.flash_offset =  0x0,
+-		.flash_max_len = ENV_UBOOT_SIZE,
+-		.valid = 0,
+-		.max_cache_idx = 0
+-	},
+-#endif
+-	{
+-		.name = FB_2860_BLOCK_NAME,
+-		.flash_offset =  0x2000,
+-#ifdef CONFIG_CONFIG_SHRINK
+-		.flash_max_len = ENV_BLK_SIZE*16,
+-#else
+-		.flash_max_len = ENV_BLK_SIZE*4,
+-#endif
+-		.valid = 0,
+-		.max_cache_idx = 0
+-	},
+-	{
+-		.name = "dev2",
+-		.flash_offset = 0x6000,
+-		.flash_max_len = ENV_BLK_SIZE*2,
+-		.valid = 0,
+-		.max_cache_idx = 0
+-	},
+-	{
+-		.name = "dev3",
+-		.flash_offset = 0x8000,
+-		.flash_max_len = ENV_BLK_SIZE*2,
++		.name = "FENV",
++		.flash_offset = 0x20000,
++		.flash_max_len = ENV_BLK_SIZE*8,
+ 		.valid = 0,
+ 		.max_cache_idx = 0
+ 	},
+ 	{
+-		.name = "cert",
+-		.flash_offset = 0xe000,
+-		.flash_max_len = ENV_BLK_SIZE,
++		.name = "UENV",
++		.flash_offset = 0x40000,
++		.flash_max_len = ENV_BLK_SIZE*8,
+ 		.valid = 0,
+ 		.max_cache_idx = 0
+-#if defined CONFIG_EXTEND_NVRAM
+-	},
+-	{
+-		.name = FB_CONFIG2_BLOCK_NAME,
+-		.flash_offset = 0x0,
+-		.flash_max_len = ENV_BLK_SIZE * 8,
+-		.valid = 0,
+-		.max_cache_idx = 0
+-#if defined CONFIG_WAPI_SUPPORT
+-	},
+-	{
+-		.name = "wapi",
+-		.flash_offset = 0x8000,
+-		.flash_max_len = ENV_BLK_SIZE * 8,
+-		.valid = 0,
+-		.max_cache_idx = 0
+-#else
+-	},
+-	{
+-		.name = "tr069cert",
+-		.flash_offset = 0x8000,
+-		.valid = 0,
+-		.max_cache_idx = 0
+-#endif
+-#endif
+ 	}
+ };
+ #endif

@@ -1,0 +1,201 @@
+
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/thermal/thermal.h>
+
+/dts-v1/;
+#include "en7552.dtsi"
+/ {
+	compatible = "econet,en7523", "airoha,en7523";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	gpio0: gpio@1fbf0200 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <0>;
+		reg = <0x1fbf0204 0x4>,
+		      <0x1fbf0200 0x4>,
+		      <0x1fbf0220 0x4>,
+		      <0x1fbf0214 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	gpio1: gpio@1fbf0270 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <32>;
+		reg = <0x1fbf0270 0x4>,
+		      <0x1fbf0260 0x4>,
+		      <0x1fbf0264 0x4>,
+		      <0x1fbf0278 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+	
+	pwm: pwm@1fbf0234{
+		compatible = "airoha,airoha-pwm";
+		reg = <0x1fbf0234 0x20>,
+		      <0x1fbf0268 0x4>,
+		      <0x1fbf0298 0x24>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		internet {
+			label = "internet";
+			gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
+		};
+		phy_tx_power_disable {
+			label = "phy_tx_power_disable";
+			gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "dsldev";
+			default-state = "on";
+		};
+		power {
+			label = "power";
+			gpios = <&gpio0 27 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		usb2 {
+			label = "usb2";
+			gpios = <&gpio0 21 GPIO_ACTIVE_LOW>;
+			trigger-sources = <&xhci_hcd>;
+			linux,default-trigger = "usbport";
+		};
+		usb_0 {
+			label = "usb_0";
+			gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "usbport";
+		};
+		voip_hook {
+			label = "voip_hook";
+			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		wlan {
+			label = "wlan";
+			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		wps {
+			label = "wps";
+			gpios = <&gpio0 4 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		xponLos {
+			label = "xponLos";
+			gpios = <&gpio0 3 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		
+		xponStatus {
+			label = "xponStatus";
+			gpios = <&gpio0 7 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+	};
+	
+	gpio-keys-polled {
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+		
+		reset_ {
+			label = "reset_";
+			linux,code = <BTN_0>;
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+		};
+		
+		wps {
+			label = "wps";
+			linux,code = <KEY_WPS_BUTTON>;
+			gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00080000>;
+		};
+		tclinux@80000 {
+			label = "tclinux";
+			reg = <0x00080000 0x02800000>;
+		};
+		tclinux_slave@2880000 {
+			label = "tclinux_slave";
+			reg = <0x02880000 0x02800000>;
+		};		
+		rootfs_data@5080000 {
+			label = "rootfs_data";
+			reg = <0x05080000 0x00800000>;
+		};
+		art@de80000 {
+			label = "art";
+			//art is located in flash end. if reg offset != ffffffff, it represents the actual offset
+			//else offset = flash_logic_size-reg_size(drivers/mtd/maps/tc3162-flash.c)
+			reg = <0xffffffff 0x00380000>;
+		};
+	};
+	i2c@1fbf8000 {
+		compatible = "airoha,airoha-i2c";
+		reg = <0x1fbf8000 0x65>;
+		clock-frequency = <400000>;
+	};
+
+	airoha-trng@1faa1000 {
+		compatible = "airoha,airoha-trng";
+		reg = <0x1faa1000 0xc04>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+	};
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
+			polling-delay-passive = <200>;
+			polling-delay = <1000>;
+			thermal-sensors = <&thermal_phy 0>;
+			trips {
+				cpu_passive: cpu-passive {
+					temperature = <105000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&cpu_passive>;
+					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+	thermal_phy: thermal_phy@1efbd000 {
+		#thermal-sensor-cells = <0>;
+		compatible = "airoha,en7552-thermal_phy";		
+		reg = <0x1efbd000 0x0fff>; //ptp_thermal_ctrl
+		int_name = "ptp_therm";
+	};
+	uart1: serial@1fbf0000 {
+		compatible = "ns8250";
+		reg = <0x1fbf0000 0x30>;
+		reg-io-width = <4>;
+		reg-shift = <2>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <1843200>;
+		status = "okay";
+	};
+	crypto_eip93@1fb70000 {
+		compatible = "airoha,airoha-eip93";
+		reg = <0x1fb70000 0x804>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;			
+	};
+
+};

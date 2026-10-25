@@ -1,0 +1,73 @@
+Index: net/bridge/br_forward.c
+===================================================================
+--- a/net/bridge/br_forward.c
++++ b/net/bridge/br_forward.c
+@@ -107,8 +107,7 @@ static void __br_forward(const struct ne
+ 		net = dev_net(skb->dev);
+ 		indev = NULL;
+ 	}
+-	if(1 == ecnt_br_drop_1905_discovery_hook(indev,skb))
+-		return;
++
+ 	NF_HOOK(NFPROTO_BRIDGE, br_hook,
+ 		net, NULL, skb, indev, skb->dev,
+ 		br_forward_finish);
+Index: net/bridge/br_input.c
+===================================================================
+--- a/net/bridge/br_input.c
++++ b/net/bridge/br_input.c
+@@ -98,10 +98,7 @@ int br_handle_frame_finish(struct net *n
+ 	/* insert into forwarding database after filtering to avoid spoofing */
+ 	br = p->br;
+ 	if (p->flags & BR_LEARNING)
+-	{
+ 		br_fdb_update(br, p, eth_hdr(skb)->h_source, vid, false);
+-		ecnt_br_fdb_set_vlan_inline_hook(br, eth_hdr(skb)->h_source, vid, skb);
+-	}
+ 
+ 	local_rcv = !!(br->dev->flags & IFF_PROMISC);
+ 	if (is_multicast_ether_addr(eth_hdr(skb)->h_dest)) {
+@@ -170,17 +167,9 @@ int br_handle_frame_finish(struct net *n
+ 		if (dst->is_local)
+ 			return br_pass_frame_up(skb);
+ 
+-		if ( dst->dst
+-			&& ECNT_CONTINUE != arht_br_handle_frame_finish_forward_inline_hook(skb, skb->dev, dst->dst->dev))
+-		{
+-			br_flood(br, skb, pkt_type, local_rcv, false);
+-		}
+-		else
+-		{
+-			if (now != dst->used)
+-				dst->used = now;
+-			br_forward(dst->dst, skb, local_rcv, false);
+-		}
++		if (now != dst->used)
++			dst->used = now;
++		br_forward(dst->dst, skb, local_rcv, false);	
+ 	} else {
+ 		if (!mcast_hit)
+ 			br_flood(br, skb, pkt_type, local_rcv, false);
+@@ -388,7 +377,6 @@ forward:
+ 		break;
+ 
+ 	case BR_STATE_FORWARDING:
+-		ecnt_br_input_state_forward_inline_hook(skb);
+ 	case BR_STATE_LEARNING:
+ 		if (ether_addr_equal(p->br->dev->dev_addr, dest))
+ 			skb->pkt_type = PACKET_HOST;
+Index: net/ipv4/ip_output.c
+===================================================================
+--- a/net/ipv4/ip_output.c
++++ b/net/ipv4/ip_output.c
+@@ -312,9 +312,7 @@ static int __ip_finish_output(struct net
+ 	}
+ #endif
+ 	mtu = ip_skb_dst_mtu(sk, skb);
+-    #ifdef MTK_CRYPTO_DRIVER
+-    CRYPTO_API_ESP_ADATPDER_SET(ECNT_CRYPTO, skb);
+-    #endif
++
+ 	if (skb_is_gso(skb))
+ 		return ip_finish_output_gso(net, sk, skb, mtu);
+ 

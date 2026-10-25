@@ -1,0 +1,16 @@
+#ifndef MULTI_PHY_ANA_RO_REG
+#define MULTI_PHY_ANA_RO_REG
+
+#define _RO_DEBUG_0 0x500
+#define _RO_AD_INTERFACE 0x504
+#define _RO_DA_INTERFACE_0 0x508
+#define _RO_DA_INTERFACE_1 0x50c
+#define _RO_DA_INTERFACE_2 0x510
+#define _RO_DA_INTERFACE_3 0x514
+#define _RO_DA_INTERFACE_4 0x518
+#define _RO_DA_INTERFACE_5 0x51c
+#define _RO_DA_INTERFACE_6 0x520
+#define _RO_DA_INTERFACE_7 0x524
+#define _RO_FIFO_STS_0 0x530
+#define _RO_FIFO_STS_1 0x534
+#endif

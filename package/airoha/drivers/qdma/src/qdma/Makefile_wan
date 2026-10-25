@@ -1,0 +1,50 @@
+KERNELDIR=$(KERNEL_DIR)
+
+include $(BSP_ROOTDIR)/ecnt-function.mk
+
+
+EXTRA_CFLAGS += -O2 
+#-save-temps
+EXTRA_CFLAGS += -D CONFIG_TX_WB_DONE \
+                -D CONFIG_RX_2B_OFFSET \
+                -D CONFIG_DEBUG \
+#              	-D CONFIG_SUPPORT_SELF_TEST \
+#               -D CONFIG_TX_POLLING_BY_MAC \
+
+ifneq ($(TCSUPPORT_AUTOBENCH),)
+EXTRA_CFLAGS += -D CONFIG_SUPPORT_SELF_TEST
+endif
+
+# EXTRA_CFLAGS += -DTCSUPPORT_QDMA_VERIFY
+EXTRA_CFLAGS += -DCONFIG_NEW_QDMA_CSR_OFFSET
+
+ifneq ($(TCSUPPORT_TSO_ENABLE),)
+ifeq ($(TCSUPPORT_TSO_V2_ENABLE),)
+ifneq ($(RDKB_BUILD),)
+BUFMGR_SRC += tso/tso.c tso/tso_common.c
+else
+BUFMGR_SRC += ../../tso/tso.c ../../tso/tso_common.c
+EXTRA_CFLAGS += -I$(MODULES_QDMA_7516_DIR)
+endif
+endif
+endif
+
+
+BUFMGR_SRC += qdma_bmgr.c qdma_api.c qdma_dev.c qdma_dvt.c qdma_virtual_if.c qdma_pri.c
+ifneq ($(strip $(TCSUPPORT_FORWARD_LEFT_TO_RIGHT)),)
+BUFMGR_SRC += soft_dma_wan.o
+endif
+BUFMGR_OBJ := $(BUFMGR_SRC:%.c=%.o)
+
+qdma_wan-objs 	:= $(BUFMGR_OBJ)
+obj-m		+= qdma_wan.o
+
+
+all:
+	$(MAKE) -C $(KERNELDIR) M=`pwd` modules
+	$(STRIP) --strip-unneeded qdma_wan.ko
+
+clean:
+	$(MAKE) -C $(KERNELDIR) M=`pwd` clean
+
+

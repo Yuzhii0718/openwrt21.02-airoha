@@ -1,0 +1,27 @@
+KERNELDIR=$(KERNEL_DIR)
+
+EXTRA_CFLAGS += -O0 
+#-save-temps
+
+EXTRA_CFLAGS += -D LRO_LAN \
+								-D CONFIG_DEBUG \
+
+LRO_SRC += lro.c lro_api.c 
+LRO_OBJ := $(LRO_SRC:%.c=%.o)
+
+
+lro_lan-objs 	:= $(LRO_OBJ)
+obj-m		+= lro_lan.o
+
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+EXTRA_CFLAGS += -I$(OPENWRT_BUILD_ROOT)/qdma/qdma_lan
+EXTRA_CFLAGS += -I$(OPENWRT_BUILD_LRO_LAN)/qdma/qdma_lan
+endif
+
+all:
+	$(MAKE) -C $(KERNELDIR) M=`pwd` modules
+	$(STRIP) --strip-unneeded lro_lan.ko
+
+clean:
+	$(MAKE) -C $(KERNELDIR) M=`pwd` clean
+

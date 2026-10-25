@@ -1,0 +1,811 @@
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+include ecnt-api.mk
+include $(BSP_ROOTDIR)/ecnt-function.mk
+else
+include ecnt-api.mk
+include $(BSP_ROOTDIR)/ecnt-function.mk
+include $(BSP_API_MTK_ITF_DIR)/make_mtk_itf
+endif
+
+INSTALL_TARGET= ecntevent_lib ecnt_lib_dbg ecnt_lib_utl ecnt_lib_portbind mesh_lib fe_lib wifi_lib vdslmgr_lib dbg_atmmgr_lib cpu_interrupt_lib cpu_interrupt_cmd uart cputemp_lib  \
+ifc_lib ppe_lib qos_lib switch_lib qosrule_lib qosrule_cmd fe_cmd switch_cmd ifc_cmd ecnt_lib_env
+
+API_TARGET=ecntevent_lib ecnt_lib_dbg ecnt_lib_utl ecnt_lib_portbind cpu_interrupt_lib cpu_interrupt_cmd uart \
+cputemp_lib cputemp_cmd mesh_lib mesh_cmd ecnt_igmp_lib ecnt_igmp_cmd ecnt_lib_printf ecnt_lib_env
+
+ifneq ($(strip $(TCSUPPORT_PROLINECMD_NG)),)
+ifneq ($(strip $(TCSUPPORT_WLAN_MULTI_CHIP)),)
+API_TARGET+=ecnt_prolinecmd
+endif
+endif
+
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP_ENHANCE)),)
+API_TARGET+= wappd
+endif
+
+ifneq ($(strip $(TCSUPPORT_EASYMESH_R13)),)
+API_TARGET+= wappd_v2
+endif
+
+ifneq ($(strip $(TCSUPPORT_MAP_R2)),)
+API_TARGET+= wappd_r2
+endif
+
+API_TARGET+=fe_lib fe_cmd switch_lib switch_cmd qosrule_lib qosrule_cmd ifc_lib ifc_cmd vdslmgr_lib dbg_atmmgr_lib
+
+ifneq ($(strip $(BSP) $(TCSUPPORT_CFG_NG)),) 
+ifneq ($(strip $(TCSUPPORT_NP)),)
+API_TARGET+=wifi_lib wifi_cmd ppe_lib ppe_cmd qdma_lib qdma_lan_cmd\
+qos_lib qos_cmd atm_lib atm_cmd ptm_lib ptm_cmd
+INSTALL_TARGET+=ppe_cmd qdma_lan_cmd qos_cmd
+else
+#API_TARGET+=pon_api
+API_TARGET+=wifi_lib wifi_cmd ppe_lib ppe_cmd qdma_lib qdma_wan_cmd qdma_lan_cmd \
+qos_lib qos_cmd atm_lib atm_cmd ptm_lib ptm_cmd xdsl_lib xdsl_cmd mtk_itf
+INSTALL_TARGET+=ppe_cmd qdma_wan_cmd qdma_lan_cmd qos_cmd
+endif
+endif
+
+ifeq ($(strip $(TCSUPPORT_OPENWRT)),)
+API_TARGET+= dbgmgr
+INSTALL_TARGET+= dbgmgr
+endif
+
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+API_TARGET+=blapi
+endif
+
+ifneq ($(strip $(TCSUPPORT_PROLINECMD_NG)),)
+ifeq ($(strip $(TCSUPPORT_WLAN_MULTI_CHIP)),)
+API_TARGET+=ecnt_prolinecmd
+endif
+endif
+
+ifneq ($(strip $(TCSUPPORT_NPU)),)
+API_TARGET+=npu_bridge_cmd
+INSTALL_TARGET+=npu_bridge_cmd
+endif
+
+API_TARGET_CLEAN=$(addsuffix _clean, $(API_TARGET))
+
+ifneq ($(strip $(SUBTARGET)),)
+TARGETS:=$(subst /, , $(SUBTARGET))
+else
+TARGETS:=$(API_TARGET)
+endif
+
+api: $(TARGETS)
+api_clean:$(API_TARGET_CLEAN)
+###########################################################################
+#Build wappd daemon
+wappd:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files/* $(BSP_INT_FS)/usr/etc/
+	
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files/* $(BSP_EXT_FS)/usr/etc/
+	
+
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd success"; \
+	else echo "Compile wappd error!"; exit 1; \
+	fi
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wapp)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wappctrl)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), libwapp_usr_intf_client.a)
+	$(call EcntBSPReleaseInstall,$(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/, *, $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd/config_and_icon_files)
+
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+endif
+
+endif
+
+wappd_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+endif
+
+#Build wappd_v2 daemon
+wappd_v2:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd_v2"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_v2/config_and_icon_files/* $(BSP_INT_FS)/usr/etc/
+	
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_v2/config_and_icon_files/* $(BSP_EXT_FS)/usr/etc/
+	
+
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd_v2 success"; \
+	else echo "Compile wappd_v2 error!"; exit 1; \
+	fi
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wapp)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wappctrl)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), libwapp_usr_intf_client.a)
+	$(call EcntBSPReleaseInstall,$(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/, *, $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_v2/config_and_icon_files)
+
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+endif
+
+endif
+
+wappd_v2_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd_v2"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+endif
+
+
+#Build wappd_r2 daemon
+wappd_r2:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Build wappd_r2"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_INT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_r2/config_and_icon_files/* $(BSP_INT_FS)/usr/etc/
+	
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wapp $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/wappctrl $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/filesystem/userfs/bin/libwapp_usr_intf_client.a $(BSP_EXT_FS)/userfs/bin/
+	cp -f $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_r2/config_and_icon_files/* $(BSP_EXT_FS)/usr/etc/
+	
+
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR)
+	if test -e $(BSP_API_MAP_WAPPD_DIR)/wapp; \
+	then echo "Compile wappd_r2 success"; \
+	else echo "Compile wappd_r2 error!"; exit 1; \
+	fi
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wapp)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), wappctrl)
+	$(call EcntBSPReleaseUsrfsBinInstall, $(BSP_API_MAP_WAPPD_DIR), libwapp_usr_intf_client.a)
+	$(call EcntBSPReleaseInstall,$(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/, *, $(RELEASE_BSP_DIR)/$(TCPLATFORM)/app_bsp/private/API/wappd_r2/config_and_icon_files)
+
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wapp  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/wappctrl  $(FILESYSTEM_DIR)/userfs/bin/
+	#cp $(BSP_API_MAP_WAPPD_DIR)/config_and_icon_files/* $(FILESYSTEM_DIR)/usr/etc/
+endif
+
+endif
+
+wappd_r2_clean:
+ifneq ($(strip $(TCSUPPORT_MAP_WAPP)),)
+	echo "Clean wappd_r2"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(BSP_API_MAP_WAPPD_DIR) clean
+endif
+endif
+###########################################################################	
+ecntevent_lib:
+	echo "Building ecntevent_lib library"	
+	$(call EcntApiMake, $(ECNT_EVENT_LIB_DIR), all, ecntevent_lib)
+	if test -e $(ECNT_EVENT_LIB_DIR)/libecntevent.so; \
+	then echo "Compile ECNT_EVENT_LIB_DIR Lib success"; \
+	else echo "Compile ECNT_EVENT_LIB_DIR Lib error!"; exit 1; \
+	fi
+
+ecntevent_lib_clean:
+	echo "Clean ECNT_EVENT_LIB_DIR library"
+	$(call EcntApiMake, $(ECNT_EVENT_LIB_DIR), clean)
+###########################################################################	
+ecnt_lib_dbg:
+	echo "Build ecnt debug library."
+	$(call EcntApiMake, $(BSP_API_DBG_LIB_DIR), all, ecnt_lib_dbg)
+
+ecnt_lib_dbg_clean:
+	echo "clean ecnt debug library."
+	$(call EcntApiMake, $(BSP_API_DBG_LIB_DIR), clean)
+###########################################################################
+ecnt_lib_env:
+	echo "Build ecnt env library."
+	$(call EcntApiMake, $(BSP_API_ENV_LIB_DIR), all, ecnt_lib_env)
+
+ecnt_lib_env_clean:
+	echo "clean ecnt env library."
+	$(call EcntApiMake, $(BSP_API_ENV_LIB_DIR), clean)
+
+ecnt_lib_printf:
+ifneq ($(strip $(TCSUPPORT_ECNT_LOG)),)
+ifneq ($(strip $(TCSUPPORT_2_6_36_KERNEL) $(TCSUPPORT_3_18_21_KERNEL)),)
+	#Build ecnt debug library
+	echo "Build ecnt debug library."
+	$(MAKE) -C $(BSP_API_ECNT_PRINTF_DIR)
+	#$(call EcntApiMake, $(BSP_API_ECNT_PRINTF_DIR), all, ecnt_lib_printf)
+endif
+endif
+
+ecnt_lib_printf_clean:
+ifneq ($(strip $(TCSUPPORT_ECNT_LOG)),)
+ifneq ($(strip $(TCSUPPORT_2_6_36_KERNEL) $(TCSUPPORT_3_18_21_KERNEL)),)
+	echo "clean ecnt debug library."
+	$(MAKE) -C $(BSP_API_ECNT_PRINTF_DIR) clean
+endif
+endif
+###########################################################################	
+ecnt_lib_utl:
+	echo "Build ecnt utility library."
+	$(call EcntApiMake, $(BSP_API_UTL_LIB_DIR), all, ecnt_lib_utl)
+
+ecnt_lib_utl_clean:
+	echo "clean ecnt utility library."
+	$(call EcntApiMake, $(BSP_API_UTL_LIB_DIR), clean)
+###########################################################################	
+ecnt_lib_portbind:
+	echo "Build ecnt portbind library."
+	$(call EcntApiMake, $(BSP_API_PORTBIND_LIB_DIR), all, ecnt_lib_portbind)
+
+ecnt_lib_portbind_clean:
+	echo "clean ecnt portbind library."
+	$(call EcntApiMake, $(BSP_API_PORTBIND_LIB_DIR), clean)
+###########################################################################	
+
+###########################################################################
+#Build wifi lib
+wifi_lib:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+	echo "Build wifimgr library."
+	$(call EcntApiMake, $(BSP_API_WIFI_LIB_DIR), all, wifi_lib)
+endif
+endif
+
+wifi_lib_clean:
+#Clean wifi lib
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+	echo "Clean wifimgr library."
+	$(call EcntApiMake, $(BSP_API_WIFI_LIB_DIR), clean)
+endif
+endif
+###########################################################################
+wifi_cmd:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+	echo "Build wifimgr cmd."
+	$(MAKE) -C $(BSP_API_WIFI_CMD_DIR)
+	if test -e $(BSP_API_WIFI_CMD_DIR)/wifimgr ; \
+	then echo "Compile wifimgr cmd success"; \
+	else echo "Compile wifimgr cmd error!"; exit 1; \
+	fi
+endif
+endif
+
+wifi_cmd_clean:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WLAN)),)
+	echo "Clean wifimgr cmd."
+	if test -e $(BSP_API_WIFI_CMD_DIR)/Makefile; \
+	then $(MAKE) -C $(BSP_API_WIFI_CMD_DIR) clean; \
+	else echo "Makefile not exist"; \
+	fi
+endif
+endif
+###########################################################################
+###########################################################################
+#Build fe lib
+fe_lib:
+	echo "Build femgr library."
+	#$(MAKE) -C $(BSP_API_FE_LIB_DIR)
+	$(call EcntApiMake, $(BSP_API_FE_LIB_DIR), all, fe_lib)
+
+fe_lib_clean:
+#Clean fe lib
+	echo "Clean femgr library."
+	#$(MAKE) -C $(BSP_API_FE_LIB_DIR) clean
+	$(call EcntApiMake, $(BSP_API_FE_LIB_DIR), clean)
+###########################################################################
+fe_cmd:
+	echo "Build femgr cmd."
+	$(call EcntApiMake, $(BSP_API_FE_CMD_DIR), all)
+
+fe_cmd_clean:
+	echo "Clean femgr cmd."
+	$(call EcntApiMake, $(BSP_API_FE_CMD_DIR), clean)
+###########################################################################
+#Build switch lib
+switch_lib:
+	echo "Build switchmgr library."
+	$(call EcntApiMake, $(BSP_API_SWITCH_LIB_DIR), all)
+
+switch_lib_clean:
+#Clean switch lib
+	echo "Clean switchmgr library."
+	$(call EcntApiMake, $(BSP_API_SWITCH_LIB_DIR), clean)
+###########################################################################
+switch_cmd:
+	echo "Build switchmgr cmd."
+	$(call EcntApiMake, $(BSP_API_SWITCH_CMD_DIR), all)
+
+switch_cmd_clean:
+	echo "Clean switchmgr cmd."
+	$(call EcntApiMake, $(BSP_API_SWITCH_CMD_DIR), clean)
+###########################################################################
+#Build ppe lib
+ppe_lib:
+	echo "Build ppemgr library."
+ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(call EcntApiMake, $(BSP_API_PPE_LIB_DIR), all)
+endif
+
+ppe_lib_clean:
+#Clean ppe lib
+	echo "Clean ppemgr library."
+ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(call EcntApiMake, $(BSP_API_PPE_LIB_DIR), clean)
+endif
+###########################################################################
+ppe_cmd:
+	echo "Build ppemgr cmd."
+ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(call EcntApiMake, $(BSP_API_PPE_CMD_DIR), all)
+endif
+
+ppe_cmd_clean:
+	echo "Clean ppemgr cmd."
+ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	$(call EcntApiMake, $(BSP_API_PPE_CMD_DIR), clean)
+endif
+###########################################################################
+npu_bridge_cmd:
+ifneq ($(strip $(TCSUPPORT_NPU)),)
+	echo "Build npu_bridge_cmd cmd."
+	$(call EcntApiMake, $(BSP_API_NPU_CMD_DIR), all)
+endif
+
+npu_bridge_cmd_clean:
+ifneq ($(strip $(TCSUPPORT_NPU)),)
+	echo "Build npu_bridge_cmd clean."
+	$(call EcntApiMake, $(BSP_API_NPU_CMD_DIR), clean)
+endif
+###########################################################################
+#Build qdma lib
+qdma_lib:
+	echo "Build qdmamgr library."	
+	$(MAKE) -C $(BSP_API_QDMA_LIB_DIR) clean
+	$(MAKE) -C $(BSP_API_QDMA_LIB_DIR)
+
+#Clean qdma lib
+qdma_lib_clean:	
+	echo "Clean qdmamgr library." 
+	$(MAKE) -C $(BSP_API_QDMA_LIB_DIR) clean
+###########################################################################
+qdma_wan_cmd:
+#Build qdmamgr_wan cmd
+	echo "Build qdmamgr_wan cmd."
+	cp $(BSP_API_QDMA_CMD_DIR)/Makefile_wan $(BSP_API_QDMA_CMD_DIR)/Makefile
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), all)
+	
+qdma_lan_cmd:	
+#Build qdmamgr_lan cmd
+	echo "Build qdmamgr_lan cmd."
+	cp $(BSP_API_QDMA_CMD_DIR)/Makefile_lan $(BSP_API_QDMA_CMD_DIR)/Makefile
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), all)
+
+qdma_wan_cmd_clean:
+#Clean qdmamgr_wan cmd
+	echo "Clean qdmamgr_wan cmd."
+	cp $(BSP_API_QDMA_CMD_DIR)/Makefile_wan $(BSP_API_QDMA_CMD_DIR)/Makefile
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), clean)
+	
+qdma_lan_cmd_clean:	
+#Clean qdmamgr_lan cmd
+	echo "Clean qdmamgr_lan cmd."
+	cp $(BSP_API_QDMA_CMD_DIR)/Makefile_lan $(BSP_API_QDMA_CMD_DIR)/Makefile
+	$(call EcntApiMake, $(BSP_API_QDMA_CMD_DIR), clean)
+###########################################################################
+#Build atm lib
+atm_lib:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Build atmmgr library."
+	$(MAKE) -C $(BSP_API_ATM_LIB_DIR)
+endif
+endif
+
+atm_lib_clean:
+#Clean atm lib
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Clean atmmgr library."
+	$(MAKE) -C $(BSP_API_ATM_LIB_DIR) clean
+endif
+endif
+###########################################################################
+atm_cmd:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Build atmmgr cmd."
+	$(MAKE) -C $(BSP_API_ATM_CMD_DIR)
+	if test -e $(BSP_API_ATM_CMD_DIR)/atm_cmd; \
+	then echo "Compile atmmgr cmd success"; \
+	else echo "Compile atmmgr cmd error!"; exit 1; \
+	fi
+endif
+endif
+
+atm_cmd_clean:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Clean atmmgr cmd."
+	if test -e $(BSP_API_ATM_CMD_DIR)/Makefile; \
+	then $(MAKE) -C $(BSP_API_ATM_CMD_DIR) clean; \
+	else echo "Makefile not exist"; \
+	fi
+endif
+endif
+###########################################################################
+#Build ptm lib
+ptm_lib:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Build ptmmgr library."
+	$(MAKE) -C $(BSP_API_PTM_LIB_DIR)
+endif
+endif
+
+ptm_lib_clean:
+#Clean ptm lib
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Clean ptmmgr library."
+	$(MAKE) -C $(BSP_API_PTM_LIB_DIR) clean
+endif
+endif
+###########################################################################
+ptm_cmd:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Build ptmmgr cmd."
+	$(MAKE) -C $(BSP_API_PTM_CMD_DIR)
+	if test -e $(BSP_API_PTM_CMD_DIR)/ptm_cmd; \
+	then echo "Compile ptmmgr cmd success"; \
+	else echo "Compile ptmmgr cmd error!"; exit 1; \
+	fi
+endif
+endif
+
+ptm_cmd_clean:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Clean ptmmgr cmd."
+	if test -e $(BSP_API_PTM_CMD_DIR)/Makefile; \
+	then $(MAKE) -C $(BSP_API_PTM_CMD_DIR) clean; \
+	else echo "Makefile not exist"; \
+	fi
+endif
+endif
+###########################################################################
+#Build xdsl lib
+xdsl_lib:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+	echo "Build xdslmgr library."
+	$(MAKE) -C $(BSP_API_XDSL_LIB_DIR)
+endif
+
+xdsl_lib_clean:
+#Clean xdsl lib
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+	echo "Clean xdslmgr library."
+	$(MAKE) -C $(BSP_API_XDSL_LIB_DIR) clean
+endif
+###########################################################################
+xdsl_cmd:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+	echo "Build xdslmgr cmd."
+	$(MAKE) -C $(BSP_API_XDSL_CMD_DIR)
+	if test -e $(BSP_API_XDSL_CMD_DIR)/xdsl_cmd; \
+	then echo "Compile xdslmgr cmd success"; \
+	else echo "Compile xdslmgr cmd error!"; exit 1; \
+	fi
+endif
+
+xdsl_cmd_clean:
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)
+	echo "Clean xdslmgr cmd."
+	if test -e $(BSP_API_XDSL_CMD_DIR)/Makefile; \
+	then $(MAKE) -C $(BSP_API_XDSL_CMD_DIR) clean; \
+	else echo "Makefile not exist"; \
+	fi
+endif
+###########################################################################
+vdslmgr_lib:
+#Build vdslmgr library.
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Build vdslmgr library."
+	$(MAKE) -C $(BSP_API_LIB_VDSL_DIR)
+endif
+
+vdslmgr_lib_clean:
+#Clean vdslmgr library
+ifneq ($(strip $(TCSUPPORT_WAN_PTM)),)
+	echo "Clean vdslmgr library."
+	$(MAKE) -C $(BSP_API_LIB_VDSL_DIR) clean
+endif	
+###########################################################################
+dbg_atmmgr_lib:
+#Build atmmgr library
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Build atmmgr library."
+	$(MAKE) -C $(BSP_API_LIB_DBG_ATM_DIR)
+endif
+
+dbg_atmmgr_lib_clean:
+#Clean atmmgr library
+ifneq ($(strip $(TCSUPPORT_WAN_ATM)),)
+	echo "Clean atmmgr library." 
+	$(MAKE) -C $(BSP_API_LIB_DBG_ATM_DIR) clean
+endif
+###########################################################################################
+qosrule_lib:
+	echo "Build qosrule_lib."
+	$(call EcntApiMake, $(BSP_API_QOSRULE_LIB_DIR), all)
+
+	
+qosrule_lib_clean:
+	echo "Clean qosrule_lib."
+	$(call EcntApiMake, $(BSP_API_QOSRULE_LIB_DIR), clean)
+	
+qosrule_cmd:
+	echo "Build qosrule_cmd."
+	$(call EcntApiMake, $(BSP_API_QOSRULE_CMD_DIR), all)
+	
+qosrule_cmd_clean:
+	echo "Clean qosrule_cmd."
+	$(call EcntApiMake, $(BSP_API_QOSRULE_CMD_DIR), clean)
+	
+###########################################################################################
+ifc_lib:
+#Build ifc library.
+ifneq ($(strip $(TCSUPPORT_IFC_EN)),)
+	echo "Build ifc library."
+	$(call EcntApiMake, $(BSP_API_IFC_LIB_DIR), all)
+endif
+
+ifc_lib_clean:
+#Clean ifc library.
+ifneq ($(strip $(TCSUPPORT_IFC_EN)),)
+	echo "Build ifc library."
+	$(call EcntApiMake, $(BSP_API_IFC_LIB_DIR), clean)
+endif
+
+ifc_cmd:
+#Build ifc cmd
+ifneq ($(strip $(TCSUPPORT_IFC_EN)),)
+	echo "Build ifc cmd."
+	$(call EcntApiMake, $(BSP_API_IFC_CMD_DIR), all)
+endif
+
+ifc_cmd_clean:
+#Clean ifc cmd
+ifneq ($(strip $(TCSUPPORT_IFC_EN)),)
+	echo "Clean ifc cmd."
+	$(call EcntApiMake, $(BSP_API_IFC_CMD_DIR), clean)
+endif
+###########################################################################################
+qos_lib:
+#build qosmgr library
+	echo "Build qosmgr library."
+	cp $(KERNEL_DIR)/include/ecnt_hook/ecnt_hook_qdma_type.h $(BSP_API_QOS_LIB_QOSMGR_DIR)/qdma_type.h
+	cp $(KERNEL_DIR)/include/ecnt_hook/ecnt_hook_fe_type.h $(BSP_API_QOS_LIB_QOSMGR_DIR)/fe_type.h
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_QOSMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_QOSMGR_DIR), all)
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_FLOWMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_FLOWMGR_DIR), all)
+
+qos_lib_clean:
+#Clean qosmgr library
+	echo "Clean qosmgr library."
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_QOSMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_LIB_FLOWMGR_DIR), clean)
+
+qos_cmd:
+#build qosmgr command
+	echo "Build qosmgr command."
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_QOSMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_QOSMGR_DIR), all)
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_FLOWMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_FLOWMGR_DIR), all)
+
+qos_cmd_clean:
+	echo "Clean qosmgr command."
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_QOSMGR_DIR), clean)
+	$(call EcntApiMake, $(BSP_API_QOS_CMD_FLOWMGR_DIR), clean)
+
+###########################################################################################
+cpu_interrupt_lib:
+#Build cpu_interrupt library.
+#ifneq ($(strip $(TCSUPPORT_MIPS_1004K)),)
+	echo "Build cpu_interrupt library."
+	$(call EcntApiMake, $(BSP_API_CPU_INTERRUPT_LIB_DIR), all)
+#endif
+
+cpu_interrupt_lib_clean:
+#Clean cpu_interrupt library.
+#ifneq ($(strip $(TCSUPPORT_MIPS_1004K)),)
+	echo "Clean cpu_interrupt library."
+	$(call EcntApiMake, $(BSP_API_CPU_INTERRUPT_LIB_DIR), clean)
+#endif
+###########################################################################################
+cpu_interrupt_cmd:
+#Build cpu_interrupt cmd
+#ifneq ($(strip $(TCSUPPORT_MIPS_1004K)),)
+	echo "Build cpu_interrupt cmd."
+	$(call EcntApiMake, $(BSP_API_CPU_INTERRUPT_CMD_DIR), all)
+	if test -e $(BSP_API_CPU_INTERRUPT_CMD_DIR)/irqCpuBind ; \
+	then echo "Compile cpu_interrupt cmd success"; \
+	else echo "Compile cpu_interrupt cmd error!"; exit 1; \
+	fi
+#endif
+
+cpu_interrupt_cmd_clean:
+#Clean cpu_interrupt cmd
+#ifneq ($(strip $(TCSUPPORT_MIPS_1004K)),)
+	echo "Clean cpu_interrupt cmd."
+	$(call EcntApiMake, $(BSP_API_CPU_INTERRUPT_LIB_DIR), clean)
+#endif
+cputemp_lib:
+#build cputempmgr library
+	echo "Build cpu_temp library."
+	$(call EcntApiMake, $(BSP_API_CPUTEMP_LIB_DIR), all, cputemp_lib)
+	
+cputemp_lib_clean:
+#Clean cputempmgr library
+	$(call EcntApiMake, $(BSP_API_CPUTEMP_LIB_DIR), clean)
+
+cputemp_cmd:
+#build cputemp command
+	if [ $(strip $(TCSUPPORT_KERNEL_VERSION)) > 206036 ]; \
+	then \
+	echo "Build cputempmgr command."; \
+	$(MAKE) -C $(BSP_API_CPUTEMP_CMD_DIR) clean; \
+	$(MAKE) -C $(BSP_API_CPUTEMP_CMD_DIR); \
+	fi
+
+cputemp_cmd_clean:
+	if [ $(strip $(TCSUPPORT_KERNEL_VERSION)) > 206036 ]; \
+	then \
+	echo "Clean cputempmgr command."; \
+	$(MAKE) -C $(BSP_API_CPUTEMP_CMD_DIR) clean; \
+	fi
+	
+###########################################################################
+uart:
+	#$(MAKE)	-C $(BSP_API_CMD_UART_DIR)
+	$(call EcntApiMake, $(BSP_API_CMD_UART_DIR), all, uart)
+	if test -e $(BSP_API_CMD_UART_DIR)/uart; \
+	then echo "Compile uart success"; \
+	else echo "Compile uart error!"; exit 1; \
+	fi
+
+uart_clean:
+	$(MAKE) -C $(BSP_API_CMD_UART_DIR) clean
+	$(call EcntApiMake, $(BSP_API_CMD_UART_DIR), clean)
+###########################################################################################
+#Build dbggmr
+ifneq ($(strip $(TCSUPPORT_NP)),)
+dbgmgr:
+dbgmgr_clean:
+else
+dbgmgr:
+#Build debug cmd
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)	
+	echo "Build debug cmd."
+	$(call EcntApiMake, $(BSP_API_DBG_DIR), all)
+endif
+dbgmgr_clean:
+#Clean debug cmd
+ifneq ($(strip $(TCSUPPORT_DRIVER_API)),)	
+	echo "Clean debug cmd." 
+	$(call EcntApiMake, $(BSP_API_DBG_DIR), clean)
+endif	
+endif	
+#############################################################################################
+#Build ecnt_igmp lib
+ecnt_igmp_lib:
+	echo "Build ecnt_igmp library."
+	#$(MAKE) -C $(BSP_API_ECNT_IGMP_LIB_DIR)
+	$(call EcntApiMake, $(BSP_API_ECNT_IGMP_LIB_DIR), all)
+
+ecnt_igmp_lib_clean:
+#Clean ecnt_igmp lib
+	echo "Clean ecnt_igmp library."
+	#$(MAKE) -C $(BSP_API_ECNT_IGMP_LIB_DIR) clean
+	$(call EcntApiMake, $(BSP_API_ECNT_IGMP_LIB_DIR), clean)
+###########################################################################
+ecnt_igmp_cmd:
+	echo "Build ecnt_igmp cmd."
+	$(call EcntApiMake, $(BSP_API_ECNT_IGMP_CMD_DIR), all)
+
+ecnt_igmp_cmd_clean:
+	echo "Clean ecnt_igmp cmd."
+	$(call EcntApiMake, $(BSP_API_ECNT_IGMP_CMD_DIR), clean)
+###########################################################################################
+mesh_lib:
+	#$(MAKE) -C $(BSP_MESH_DIR)/lib_src
+	echo "Build ecnt mesh library."
+	$(call EcntApiMake, $(BSP_MESH_DIR)/lib_src, all, mesh_lib)
+mesh_lib_clean:
+	#$(MAKE) -C $(BSP_MESH_DIR)/lib_src clean 
+	echo "clean ecnt mesh library."
+	$(call EcntApiMake, $(BSP_MESH_DIR)/lib_src, clean)
+mesh_cmd:
+	$(MAKE) -C $(BSP_MESH_DIR)/cmd
+mesh_cmd_clean:
+	$(MAKE) -C $(BSP_MESH_DIR)/cmd clean 
+###########################################################################################
+
+
+
+lib_ppe:
+#Build ppe library.
+ifneq ($(strip $(TCSUPPORT_RA_HWNAT)),)
+ifneq ($(strip $(TCSUPPORT_MT7510_FE)),)
+	echo "Build ppe library."
+	$(MAKE) -C $(APP_BSP_API_PPE_LIB_DIR)
+endif
+endif
+###########################################################################
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)	
+blapi:
+	make -C $(BSP_BLAPI_DIR) -f $(BSP_BLAPI_DIR)/make_blapi blapi	
+
+blapi_clean:
+	make -C $(BSP_BLAPI_DIR) -f $(BSP_BLAPI_DIR)/make_blapi blapi_clean
+endif		
+###########################################################################	
+ifneq ($(strip $(TCSUPPORT_PROLINECMD_NG)),)
+ecnt_prolinecmd:
+	echo "Build ecnt_prolinecmd"
+	cp -f $(BSP_PROLINECMD_DIR)/src/lib_src/libapi_lib_prolinecmd.h $(GLOBAL_INC_DIR)/uapi/flash_layout/
+	cp -f $(BSP_PROLINECMD_DIR)/src/lib_src/libapi_lib_prolinecmd_flag.h $(GLOBAL_INC_DIR)/uapi/flash_layout/
+	$(call EcntApiMake, $(BSP_PROLINECMD_DIR), all)
+ecnt_prolinecmd_clean:
+	echo "Build ecnt_prolinecmd_clean"
+	$(call EcntApiMake, $(BSP_PROLINECMD_DIR), clean)
+	rm -f $(GLOBAL_INC_DIR)/uapi/flash_layout/libapi_lib_prolinecmd.h
+	rm -f $(GLOBAL_INC_DIR)/uapi/flash_layout/libapi_lib_prolinecmd_flag.h
+endif
+###########################################################################	
+.PHONY : api $(API_TARGET)

@@ -1,0 +1,532 @@
+--- a/net/bridge/br.c
++++ b/net/bridge/br.c
+@@ -16,9 +16,16 @@
+ #include <net/llc.h>
+ #include <net/stp.h>
+ #include <net/switchdev.h>
+-
++#include <linux/netlink.h>
+ #include "br_private.h"
+ 
++#define CONFIG_TW_DEV_MON
++
++#ifdef CONFIG_TW_DEV_MON
++int g_dhcpmon_pid = 0;
++int g_factory_mode = 0;
++struct sock *netlink_dhcpmon_sock = NULL;
++#endif
+ /*
+  * Handle changes in state of network devices enslaved to a bridge.
+  *
+@@ -308,6 +315,119 @@ static const struct stp_proto br_stp_proto = {
+ 	.rcv	= br_stp_rcv,
+ };
+ 
++#ifdef CONFIG_TW_DEV_MON
++static ssize_t dhcpmon_pid_write_proc(struct file *file, const char __user *buf,size_t count, loff_t *data)
++{
++    char buffer[64] = {0};
++    int len = 0;
++    int tmpPid = 0;
++
++    if (*data)
++    {
++        return -EINVAL;
++    }
++
++    len = (count < (sizeof(buffer) - 1)) ? count : (sizeof(buffer) - 1);
++    if (copy_from_user(buffer, buf, len))
++    {
++        return -EINVAL;
++    }
++
++    buffer[len] = '\0';
++    if(sscanf(buffer, "%d", &tmpPid) != 1)
++    {
++        return -EINVAL;
++    }
++    g_dhcpmon_pid = tmpPid;
++    return count;
++}
++
++static ssize_t dhcpmon_pid_read_proc(struct file *file, char __user *buf,size_t count, loff_t *data)
++{
++    int len = 0;
++    char buffer[64] = {0};
++    long err = 0;;
++
++    if (0 != *data)
++    {
++        return 0;
++    }
++
++    memset(buffer, 0 ,sizeof(buffer));
++    len = sprintf(buffer, "%d", g_dhcpmon_pid);
++
++    err = copy_to_user(buf, buffer, len);
++    if (err)
++    {
++        return err;
++    }
++    *data += len;
++    return len;
++}
++
++static const struct file_operations dhcpmon_fops = {
++    .owner          = THIS_MODULE,
++    .read           = dhcpmon_pid_read_proc,
++    .write          = dhcpmon_pid_write_proc,
++};
++
++static ssize_t factory_mode_read_proc(struct file *file, char __user *buf,size_t count, loff_t *data)
++{
++    int len = 0;
++    char buffer[64] = {0};
++    long err = 0;;
++
++    if (0 != *data)
++    {
++        return 0;
++    }
++
++    memset(buffer, 0 ,sizeof(buffer));
++    len = sprintf(buffer, "%d", g_factory_mode);
++
++    err = copy_to_user(buf, buffer, len);
++    if (err)
++    {
++        return err;
++    }
++    *data += len;
++    return len;
++}
++
++static ssize_t factory_mode_write_proc(struct file *file, const char __user *buf,size_t count, loff_t *data)
++{
++    char buffer[64] = {0};
++    int len = 0;
++    int tmp = 0;
++
++    if (*data)
++    {
++        return -EINVAL;
++    }
++
++    len = (count < (sizeof(buffer) - 1)) ? count : (sizeof(buffer) - 1);
++    if (copy_from_user(buffer, buf, len))
++    {
++        return -EINVAL;
++    }
++
++    buffer[len] = '\0';
++    if(sscanf(buffer, "%d", &tmp) != 1)
++    {
++        return -EINVAL;
++    }
++    g_factory_mode = tmp;
++    return count;
++}
++
++static const struct file_operations factory_mode_entry = {
++    .owner          = THIS_MODULE,
++    .read           = factory_mode_read_proc,
++    .write          = factory_mode_write_proc,
++};
++
++#endif
++
+ static int __init br_init(void)
+ {
+ 	int err;
+@@ -349,7 +469,12 @@ static int __init br_init(void)
+ #if IS_ENABLED(CONFIG_ATM_LANE)
+ 	br_fdb_test_addr_hook = br_fdb_test_addr;
+ #endif
++#ifdef CONFIG_TW_DEV_MON
++    proc_create( "dhcpmon_pid", 0x0644, NULL, &dhcpmon_fops);
++    netlink_dhcpmon_sock = netlink_kernel_create(&init_net, NETLINK_DHCP_TBL, NULL);
+ 
++    proc_create( "factory_mode", 0x0644, NULL, &factory_mode_entry);
++#endif
+ #if IS_MODULE(CONFIG_BRIDGE_NETFILTER)
+ 	pr_info("bridge: filtering via arp/ip/ip6tables is no longer available "
+ 		"by default. Update your scripts to load br_netfilter if you "
+@@ -377,6 +502,12 @@ static void __exit br_deinit(void)
+ {
+ 	stp_proto_unregister(&br_stp_proto);
+ 	br_netlink_fini();
++#ifdef CONFIG_TW_DEV_MON
++    if (netlink_dhcpmon_sock != NULL)
++    {
++        sock_release(netlink_dhcpmon_sock->sk_socket);
++    }
++#endif
+ 	unregister_switchdev_notifier(&br_switchdev_notifier);
+ 	unregister_netdevice_notifier(&br_device_notifier);
+ 	brioctl_set(NULL);
+
+--- a/net/bridge/br_input.c
++++ b/net/bridge/br_input.c
+@@ -23,8 +23,280 @@
+ #include "br_private_tunnel.h"
+ #include "ecnt_br.h"
+ 
++#define CONFIG_TW_DEV_MON
++#ifdef CONFIG_TW_DEV_MON
++#include "dhcpd.h"
++#endif
+ extern int (*ecnt_br_map_link_local_packet_handle_hook)(struct sk_buff *skb);
+ 
++#ifdef CONFIG_TW_DEV_MON
++struct udp_dhcp_packet
++{
++	struct iphdr ip;
++	struct udphdr udp;
++	struct dhcpMessage data;
++};
++ 
++typedef struct device_list_table
++{
++	unsigned char ip[4];
++	unsigned char mac[6];
++	unsigned char smac[6];
++	unsigned char ifname[16];
++	unsigned char hostname[64];
++    int ifindex;
++	int pkttype;
++}device_list_table;
++
++extern int g_factory_mode;
++extern int g_dhcpmon_pid;
++extern struct sock *netlink_dhcpmon_sock;
++//rwlock_t  br_netlink_lock;
++
++unsigned char *br_get_dhcp_option(struct dhcpMessage *packet, int code, unsigned char *option_len)
++{
++    int i, length;
++    unsigned char *optionptr = NULL;
++    int over = 0, done = 0, curr = OPTION_FIELD;
++
++    optionptr = packet->options;
++    i = 0;
++    length = 308;
++    while (!done)
++    {
++        if (i >= length)
++        {
++            return NULL;
++        }
++
++        if (optionptr[i + OPT_CODE] == code)
++        {
++            if (i + 1 + optionptr[i + OPT_LEN] >= length)
++            {
++                return NULL;
++            }
++            *option_len = optionptr[i + OPT_LEN];
++            return optionptr + i + 2;
++        }
++        switch (optionptr[i + OPT_CODE])
++        {
++            case DHCP_PADDING:
++                i++;
++                break;
++            case DHCP_OPTION_OVER:
++                if (i + 1 + optionptr[i + OPT_LEN] >= length)
++                {
++                    return NULL;
++                }
++                over = optionptr[i + 3];
++                i += optionptr[OPT_LEN] + 2;
++                break;
++            case DHCP_END:
++                if (curr == OPTION_FIELD && over & FILE_FIELD)
++                {
++                    optionptr = packet->file;
++                    i = 0;
++                    length = 128;
++                    curr = FILE_FIELD;
++                }
++                else if (curr == FILE_FIELD && over & SNAME_FIELD)
++                {
++                    optionptr = packet->sname;
++                    i = 0;
++                    length = 64;
++                    curr = SNAME_FIELD;
++                }
++                else
++                {
++                    done = 1;
++                }
++                break;
++            default:
++                i += optionptr[OPT_LEN + i] + 2;
++        }
++    }
++    return NULL;
++}
++
++static void send_msg_to_user(struct device_list_table device_msg)
++{
++    int size = 0, ret = 0;
++    struct device_list_table *s_device = NULL;
++    struct sk_buff *skb = NULL;
++    struct nlmsghdr *nlh = NULL;
++
++    if(g_dhcpmon_pid == 0)
++    {
++        printk("dhcpmon_pid's pid = %d.Please run dhcpmon_pid.\n", g_dhcpmon_pid);
++        return;
++    }
++
++    size = NLMSG_SPACE(sizeof(struct device_list_table));
++
++    skb = alloc_skb(size, GFP_ATOMIC);
++
++    nlh = nlmsg_put(skb, 0, 0, NETLINK_DHCP_TBL, size-sizeof(*nlh), 0);
++
++    s_device = NLMSG_DATA(nlh);
++
++    memset(s_device, 0, size);
++    s_device->ip[0] = device_msg.ip[0];
++    s_device->ip[1] = device_msg.ip[1];
++    s_device->ip[2] = device_msg.ip[2];
++    s_device->ip[3] = device_msg.ip[3];
++
++    s_device->mac[0] = device_msg.mac[0];
++    s_device->mac[1] = device_msg.mac[1];
++    s_device->mac[2] = device_msg.mac[2];
++    s_device->mac[3] = device_msg.mac[3];
++    s_device->mac[4] = device_msg.mac[4];
++    s_device->mac[5] = device_msg.mac[5];
++    
++    s_device->smac[0] = device_msg.smac[0];
++    s_device->smac[1] = device_msg.smac[1];
++    s_device->smac[2] = device_msg.smac[2];
++    s_device->smac[3] = device_msg.smac[3];
++    s_device->smac[4] = device_msg.smac[4];
++    s_device->smac[5] = device_msg.smac[5];
++    s_device->ifindex = device_msg.ifindex;
++    s_device->pkttype = device_msg.pkttype;
++    memcpy(s_device->hostname, device_msg.hostname, 64);
++    memcpy(s_device->ifname, device_msg.ifname, sizeof(device_msg.ifname));
++
++    nlh->nlmsg_len = size;
++    /* send msg */
++    ret = netlink_unicast(netlink_dhcpmon_sock, skb, g_dhcpmon_pid, MSG_DONTWAIT);
++    return;
++}
++
++
++int br_arp_packet(struct sk_buff *skb, unsigned char *br_dest, const unsigned char *dest)
++{
++    struct ethhdr *eth;
++    struct eth_arphdr *parp = NULL;
++    struct device_list_table g_deviceListTable;
++    eth = (struct ethhdr *)skb_mac_header(skb);
++    if (eth &&  eth->h_proto == htons(ETHERTYPE_ARP))
++    {
++        parp = (struct eth_arphdr *)(eth+1);
++        if(parp)
++        {
++            if (parp->ar_pro == htons(ETH_P_IP))
++            {
++                //printk("arp %s")
++                memset(&g_deviceListTable, 0, sizeof(struct device_list_table));
++                g_deviceListTable.pkttype = (int)'a';
++                memcpy(g_deviceListTable.mac, parp->ar_sha, ETH_ALEN);
++                memcpy(g_deviceListTable.ip, parp->ar_sip, 4);
++                send_msg_to_user(g_deviceListTable);
++                //printk("arp %02x:%02x:%02x:%02x:%02x:%02x   %d.%d.%d.%d\n", parp->ar_sha[0], parp->ar_sha[1], parp->ar_sha[2], parp->ar_sha[3], parp->ar_sha[4], parp->ar_sha[5]
++                //, parp->ar_sip[0], parp->ar_sip[1], parp->ar_sip[2], parp->ar_sip[3]);
++            }
++        }
++    }
++    return 0;
++}
++
++/*************************************
++ * fuction: br_dhcp_packet
++ * input: udp data, dhcp option code
++ * return:code offset at skb
++ *************************************/
++int br_dhcp_packet(struct sk_buff *skb, unsigned char *br_dest, const unsigned char *dest)
++{
++    struct iphdr *iph = NULL;
++    struct udphdr *udph = NULL;
++    struct udp_dhcp_packet *dhcp_packet = NULL;
++    unsigned char option_len = 0, *temp = NULL;
++    struct device_list_table g_deviceListTable;
++    struct ethhdr *eth;
++
++    if ((NULL == skb) || (NULL == br_dest) || (NULL == dest))
++    {
++        return 0;
++    }
++
++    iph = (struct iphdr *)skb_network_header(skb);
++
++    if(NULL == iph)
++    {
++        return 0;
++    }
++
++    udph=(void *) iph + iph->ihl*4;
++    if(NULL == udph)
++    {
++        return 0;
++    }
++
++    if(iph->protocol == IPPROTO_UDP)
++    {
++        if(ntohs(udph->dest) == 67)
++        {
++            dhcp_packet =(struct udp_dhcp_packet *)skb->data;
++            if(NULL == dhcp_packet)
++            {
++                return 0;
++            }
++
++            if(0x01 == dhcp_packet->data.op)
++            {
++                
++                
++                memset(&g_deviceListTable, 0, sizeof(struct device_list_table));
++                memcpy(g_deviceListTable.mac, dhcp_packet->data.chaddr, 6);
++                eth=(struct ethhdr *)skb_mac_header(skb);
++                if (memcmp(g_deviceListTable.mac, eth->h_source, 6))
++                {				
++                    memcpy(g_deviceListTable.smac, eth->h_source, 6);
++                }
++                memcpy(g_deviceListTable.ifname, skb->dev->name, sizeof(skb->dev->name) < sizeof(g_deviceListTable.ifname) ? sizeof(g_deviceListTable.ifname) : sizeof(skb->dev->name) );
++                if (NULL != (temp = br_get_dhcp_option(&(dhcp_packet->data), DHCP_HOST_NAME, &option_len)))
++                {
++                    memcpy(g_deviceListTable.hostname, temp, option_len < sizeof(g_deviceListTable.hostname) ? option_len :  sizeof(g_deviceListTable.hostname));
++                }
++                if (NULL != (temp = br_get_dhcp_option(&(dhcp_packet->data), DHCP_REQUESTED_IP, &option_len)))
++                {
++                    memcpy(g_deviceListTable.ip, temp, 4);
++                }
++                g_deviceListTable.ifindex = skb->dev->ifindex;
++                g_deviceListTable.pkttype = 0;
++                send_msg_to_user(g_deviceListTable);
++                
++            }
++        }
++        else if(ntohs(udph->dest) == 68)
++        {
++            dhcp_packet =(struct udp_dhcp_packet *)skb->data;
++            if(NULL == dhcp_packet)
++            {
++                return 0;
++            }
++
++            if(0x02 == dhcp_packet->data.op)
++            {
++                if (NULL != (temp = br_get_dhcp_option(&(dhcp_packet->data), DHCP_PKT_TYPE, &option_len)))
++                {
++                    if (temp[0] == 0x05)
++                    {
++                        memset(&g_deviceListTable, 0, sizeof(struct device_list_table));
++                        memcpy(g_deviceListTable.mac, dhcp_packet->data.chaddr, 6);
++                        g_deviceListTable.pkttype = 5;
++                        g_deviceListTable.ip[0] = (dhcp_packet->data.yiaddr[0]);
++                        g_deviceListTable.ip[1] = (dhcp_packet->data.yiaddr[1]);
++                        g_deviceListTable.ip[2] = (dhcp_packet->data.yiaddr[2]);
++                        g_deviceListTable.ip[3] = (dhcp_packet->data.yiaddr[3]);
++                        send_msg_to_user(g_deviceListTable);
++                    }
++                }
++            }
++        }
++    }
++    return 0;
++}
++#endif
++
++
+ static int
+ br_netif_receive_skb(struct net *net, struct sock *sk, struct sk_buff *skb)
+ {
+@@ -99,7 +371,13 @@ int br_handle_frame_finish(struct net *net, struct sock *sk, struct sk_buff *skb
+ 	br = p->br;
+ 	if (p->flags & BR_LEARNING)
+ 		br_fdb_update(br, p, eth_hdr(skb)->h_source, vid, false);
+-
++#ifdef CONFIG_TW_DEV_MON
++     if (!g_factory_mode)
++     {
++         br_arp_packet(skb, p->br->dev->dev_addr, eth_hdr(skb)->h_dest);
++         br_dhcp_packet(skb, p->br->dev->dev_addr, eth_hdr(skb)->h_dest); 
++     }
++#endif
+ 	local_rcv = !!(br->dev->flags & IFF_PROMISC);
+ 	if (is_multicast_ether_addr(eth_hdr(skb)->h_dest)) {
+ 		/* by definition the broadcast is also a multicast address */
+
+--- /dev/null
++++ b/net/bridge/dhcpd.h
+@@ -0,0 +1,53 @@
++
++#ifndef UDHCP_DHCPD_H
++#define UDHCP_DHCPD_H 1
++
++
++#define ETHERTYPE_ARP   0x0806
++
++#define OPTION_FIELD    0
++#define FILE_FIELD      1
++#define SNAME_FIELD     2
++
++#define DHCP_PADDING       0x00
++#define DHCP_HOST_NAME     0x0c /* either client informs server or server gives name to client */
++#define DHCP_REQUESTED_IP  0x32 /* sent by client if specific IP is wanted */
++#define DHCP_PKT_TYPE      0x35
++#define DHCP_OPTION_OVER   0x34
++#define DHCP_END           0xFF
++
++#define OPT_CODE 0
++#define OPT_LEN 1
++#define OPT_DATA 2
++
++struct dhcpMessage {
++    u_int8_t op;
++    u_int8_t htype;
++    u_int8_t hlen;
++    u_int8_t hops;
++    u_int32_t xid;
++    u_int16_t secs;
++    u_int16_t flags;
++    u_int8_t ciaddr[4];
++    u_int8_t yiaddr[4];
++    u_int8_t siaddr[4];
++    u_int8_t giaddr[4];
++    u_int8_t chaddr[16];
++    u_int8_t sname[64];
++    u_int8_t file[128];
++    u_int32_t cookie;
++    u_int8_t options[308]; /* 312 - cookie */
++};
++
++struct eth_arphdr {
++        unsigned short  ar_hrd, /* format of hardware address */
++                        ar_pro; /* format of protocol address */
++        unsigned char   ar_hln, /* length of hardware address */
++                        ar_pln; /* length of protocol address */
++        unsigned short  ar_op;  /* ARP opcode (command) */
++        unsigned char   ar_sha[ETH_ALEN],       /* sender hardware address */
++                        ar_sip[4],              /* sender IP address */
++                        ar_tha[ETH_ALEN],       /* target hardware address */
++                        ar_tip[4];              /* target IP address */
++} __attribute__((__packed__));
++#endif
+
+--- a/include/uapi/linux/netlink.h
++++ b/include/uapi/linux/netlink.h
+@@ -30,6 +30,7 @@
+ #define NETLINK_RDMA		20
+ #define NETLINK_CRYPTO		21	/* Crypto layer */
+ #define NETLINK_SMC		22	/* SMC monitoring */
++#define NETLINK_DHCP_TBL    23
+ 
+ #define NETLINK_INET_DIAG	NETLINK_SOCK_DIAG

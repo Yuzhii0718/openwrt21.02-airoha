@@ -1,0 +1,242 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+
+
+reset_uci_wireless() {
+	# if [ -e /tmp/.restore ] && [ "$factory_mode" == "off" ]; then
+	# 	sleep 50 && /sbin/check_ibf.sh &
+	# fi
+	# uci commit wireless
+	# uci2dat
+
+	# set uuid for hostapd and wpa_supplicant(further process in supplicant.lua)
+	local uuid=$(echo `telnetdEnable genuuid`)
+	if [ -n "$uuid" ]; then
+		uci set wireless.ra0.uuid=$uuid
+		uci set wireless.rai0.uuid=$uuid
+		uci set wireless.apcli0.uuid=$uuid
+		uci set wireless.apclii0.uuid=$uuid
+	fi
+
+	# set guest network control file
+	uci set wireless.2g_5g.firstSetGuestwifi_2g=1
+	uci set wireless.2g_5g.firstSetGuestwifi_5g=1
+	uci commit wireless
+}
+
+post_reset_uci_wireless() {
+	echo "preinit reset post_reset_uci_wireless"
+	# disable mldgroup, apmld, stamld  as ntgr's requirement
+	uci -q set wireless.ra0.mldgroup='0'
+	uci -q set wireless.rai0.mldgroup='0'
+	uci -q set wireless.apmld1.disabled='1'
+	uci -q set wireless.stamld2.disabled='1'
+
+	uci commit wireless
+}
+
+reset_uci_region() {
+	local region=`envctl factory get region`
+	local channel_2g=1
+	local channel_5g=36
+	local wirelessmode_2g=""
+	local wirelessmode_5g=""
+	local status=`protest --restore -status`
+	if [ "$region" = "US" -o "$region" = "NA" ]; then
+		channel_5g=149
+	fi
+	if [ "$region" = "TR" -o "$region" = "SA" -o "$region" = "AS" ]; then
+		wirelessmode_5g="54Mbps"
+	fi
+	if [ "x$wirelessmode_2g" != "x" ]; then
+		uci set wireless.MT7992_1_1.htmode=$wirelessmode_2g
+	fi
+	if [ "x$wirelessmode_5g" != "x" ]; then
+		uci set wireless.MT7992_1_2.htmode=$wirelessmode_5g
+	fi
+	if [ "$region" = "WW" ]; then
+		region="EU"
+	fi
+	if [ -n "$region" ]; then
+		uci set wireless.MT7992_1_1.country=$region
+		uci set wireless.MT7992_1_2.country=$region
+		if [ "$status" == "~!factory_settings!~" ]; then
+			uci set wireless.MT7992_1_1.channel=6
+			uci set wireless.MT7992_1_2.channel=36
+		else
+			uci set wireless.MT7992_1_1.channel=$channel_2g
+			uci set wireless.MT7992_1_2.channel=$channel_5g
+		fi
+	else
+		uci set wireless.MT7992_1_1.country=EU
+		uci set wireless.MT7992_1_2.country=EU
+		if [ "$status" == "~!factory_settings!~" ]; then
+			uci set wireless.MT7992_1_1.channel=6
+			uci set wireless.MT7992_1_2.channel=36
+		else
+			uci set wireless.MT7992_1_1.channel=1
+			uci set wireless.MT7992_1_2.channel=36
+		fi
+	fi
+
+	if [ "$region" = "EU" -o "$region" = "WW" ]; then
+		uci set wireless.2g_5g.mumimo=0
+		uci set wireless.2g_5g.ofdma=0
+		uci set wireless.MT7992_1_1.mutxrx_enable=0
+		uci set wireless.MT7992_1_2.mutxrx_enable=0
+
+		uci set wireless.ra0.mumimoul_enable=0
+		uci set wireless.ra0.mumimodl_enable=0
+		uci set wireless.ra0.muofdmaul_enable=0
+		uci set wireless.ra0.muofdmadl_enable=0
+
+		uci set wireless.ra1.mumimoul_enable=0
+		uci set wireless.ra1.mumimodl_enable=0
+		uci set wireless.ra1.muofdmaul_enable=0
+		uci set wireless.ra1.muofdmadl_enable=0
+
+		uci set wireless.rai0.mumimoul_enable=0
+		uci set wireless.rai0.mumimodl_enable=0
+		uci set wireless.rai0.muofdmaul_enable=0
+		uci set wireless.rai0.muofdmadl_enable=0
+
+		uci set wireless.rai1.mumimoul_enable=0
+		uci set wireless.rai1.mumimodl_enable=0
+		uci set wireless.rai1.muofdmaul_enable=0
+		uci set wireless.rai1.muofdmadl_enable=0
+	fi
+	uci commit wireless
+	#uci2dat
+}
+
+reset_uci_pinCode(){
+	local pinCode=$(echo `envctl factory get pin`)
+	if [ -n "$pinCode" ] ; then
+		uci -q set "wireless.2g_5g.wpsPinCode=$pinCode"
+	fi
+}
+
+reset_uci_deviceName(){
+	local deviceName=$(echo `envctl factory get model`)
+	if [ -n "$deviceName" ] ; then
+		uci -q set "wireless.2g_5g.deviceName=$deviceName"
+	fi
+}
+
+reset_uci_system(){
+	local deviceName=$(echo `envctl factory get model`)
+	local deviceSN=$(echo `envctl factory get sn`)
+	local mac=$(echo `envctl factory get mac`)
+	local deviceaxModel=$(echo `envctl factory get axmodel`)
+	local status=`protest --restore -status`
+	local hardwareId=`protest --hardwareId -r`
+	local hardware=`protest --hardware -r`
+	HWId="1010000014770000_NETGEAR"
+	HWVER="V1H1"
+
+	if [ "$status" == "~!factory_settings!~" ]; then
+		if [ -z "$deviceName" ]; then
+			protest --model -w EXS27
+			if [ "$hardwareId" == "~!!~" ]; then
+				protest --hardwareId -w $HWId
+			fi
+			if [ "$hardware" == "~!!~" ]; then
+				protest --hardware -w $HWVER
+			fi
+		fi
+
+		if [ -z "$deviceaxModel" ]; then
+			protest --axmodel -w BE5000
+		fi
+	else
+		if [ -n "$deviceName" ]; then
+			uci -q set "system.@system[0].model=$deviceName"
+		fi
+
+		if [ -n "$deviceaxModel" ]; then
+			uci -q set "system.@system[0].axmodel=$deviceaxModel"
+		fi
+	fi
+
+	if [ -n "$deviceSN" ]; then
+		uci -q set "system.@system[0].sn=$deviceSN"
+	fi
+
+	if [ -n "$mac" ]; then
+		local basemac="${mac:0:2}:${mac:2:2}:${mac:4:2}:${mac:6:2}:${mac:8:2}:${mac:10:2}"
+		uci -q set "system.@system[0].basemac=$basemac"
+	fi
+
+	if [ "$hardwareId" == "~!!~" ]; then
+		protest --hardwareId -w $HWId
+	fi
+	if [ "$hardware" == "~!!~" ]; then
+		protest --hardware -w $HWVER
+	fi
+
+	uci commit system
+}
+
+reset_uci_rae() {
+	local tsVersion=`uci get rae.@rae[0].TermsOfServiceVersion`
+	if [ "$tsVersion" != "V2.0" ];then
+		uci -q set rae.@rae[0].TermsOfServiceVersion=V2.0
+		uci commit system
+	fi
+}
+
+sync_softVersion() {
+	local sysversion
+	local last_sysversion
+	local model=$(echo `envctl factory get model`)
+	
+	last_sysversion=`cat /etc/config/system | grep "softVersion"|  awk -F"'" '{print $2}'`
+	if [ -n "$model" ] && [ "$model" != "EXS27" ]; then
+		sysversion=`cat /rom/cfg/$model/system | grep "softVersion"|  awk -F"'" '{print $2}'`
+	else
+		sysversion=`cat /rom/etc/config/system | grep "softVersion"|  awk -F"'" '{print $2}'`
+	fi
+	if [ "$sysversion" != "$last_sysversion" ]; then
+		uci -q set "system.@system[0].softVersion=$sysversion"
+	fi
+}
+
+snyc_default_region() {
+	local default_region=`envctl factory get default_region`
+	local region=`envctl factory get region`
+	if [ "$default_region" != "$region" ] && [ -n "$region" ]; then
+	    envctl factory set default_region $region
+	fi
+}
+
+snyc_derivativeModel_default() {
+	local model=$(echo `envctl factory get model`)
+	local deviceaxModel=$(echo `envctl factory get axmodel`)
+	local status=`protest --restore -status`
+
+	#if [ "$status" == "~!factory_settings!~" ]; then
+		#TO BE
+	#fi
+}
+
+preinit_reset_uci() {
+	local factory_mode=`envctl factory get factory_mode`
+	echo "preinit reset uci config"
+	echo 1 > /var/cfu_reboot_flag ## add reboot flag file, used for CFU to call boot_notify() after reboot;
+	if [ -e /tmp/.restore ] || [ "$factory_mode" != "off" ]; then
+		#snyc_derivativeModel_default
+		snyc_default_region
+		reset_uci_region
+		#reset_uci_pinCode   //not support pincode now.
+		#reset_uci_deviceName
+		reset_uci_wireless
+		reset_uci_system
+		reset_uci_deviceName
+	fi
+	reset_uci_rae
+	post_reset_uci_wireless
+	sync_softVersion
+}
+
+boot_hook_add preinit_main preinit_reset_uci

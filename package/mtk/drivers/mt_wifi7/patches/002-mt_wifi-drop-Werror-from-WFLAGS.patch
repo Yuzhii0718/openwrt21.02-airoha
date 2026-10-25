@@ -1,0 +1,11 @@
+--- a/mt_wifi/mk/config/config.mk
++++ b/mt_wifi/mk/config/config.mk
+@@ -69,7 +69,7 @@
+ #WFLAGS += -Wframe-larger-than=4096
+ 
+ ifeq ($(CONFIG_DBG_CFG),y)
+-WFLAGS += -DDBG -DDBG_ENHANCE -Werror
++WFLAGS += -DDBG -DDBG_ENHANCE
+ endif
+ 
+ 

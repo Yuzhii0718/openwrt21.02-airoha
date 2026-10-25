@@ -1,0 +1,518 @@
+diff -auNr old/src/iperf_api.c new/src/iperf_api.c
+--- old/src/iperf_api.c	2021-06-03 06:29:24.000000000 +0800
++++ new/src/iperf_api.c	2024-01-30 19:41:31.948319000 +0800
+@@ -57,6 +57,7 @@
+ #include <setjmp.h>
+ #include <stdarg.h>
+ #include <math.h>
++#include <sys/ioctl.h>
+ 
+ #if defined(HAVE_CPUSET_SETAFFINITY)
+ #include <sys/param.h>
+@@ -103,6 +104,7 @@
+ static void print_interval_results(struct iperf_test *test, struct iperf_stream *sp, cJSON *json_interval_streams);
+ static cJSON *JSON_read(int fd);
+ 
++int cport[8] = {0};
+ 
+ /*************************** Print usage functions ****************************/
+ 
+@@ -767,6 +769,260 @@
+     ipt->congestion = strdup(cc);
+ }
+ 
++static inline char* skip_whitespace(char *s)
++{
++	while (*s == ' ' || *s == '\t') ++s;
++
++	return s;
++}
++
++static char *get_name(char *name, char *p)
++{
++	char *nameend;
++	char *namestart = skip_whitespace(p);
++
++	nameend = namestart;
++	while (*nameend && *nameend != ':' && !isspace(*nameend))
++		nameend++;
++	if (*nameend == ':') {
++		if ((nameend - namestart) < 16) {
++			memcpy(name, namestart, nameend - namestart);
++			name[nameend - namestart] = '\0';
++			p = nameend;
++		} else {
++			/* Interface name too large */
++			name[0] = '\0';
++		}
++	} else {
++		/* trailing ':' not found - return empty */
++		name[0] = '\0';
++	}
++	return p + 1;
++}
++
++static int is_dev_ip_addr_match(char *wan_name, unsigned int ipl)
++{
++	struct ifreq ifr;
++	int skfd;
++	struct sockaddr_in *p_saddr = NULL;
++	int ret = 0;
++	
++	skfd = socket(AF_INET, SOCK_DGRAM, 0);
++	if(skfd < 0)
++		return 0;
++	strncpy(ifr.ifr_name, wan_name, 16);
++
++	ifr.ifr_addr.sa_family = AF_INET;
++	if (ioctl(skfd, SIOCGIFADDR, &ifr) == 0) {
++		p_saddr = (struct sockaddr_in *)&ifr.ifr_addr;
++		if(p_saddr->sin_addr.s_addr == ipl){
++			ret = 1;
++		}
++	}
++
++	close(skfd);
++	return ret;
++}
++
++static int get_dev_by_ip(char *wan_dev, unsigned int ipl)
++{
++	FILE *fh;
++	char buf[512];
++	int err = -1;
++
++	fh = fopen("/proc/net/dev", "r");
++	if (!fh) {
++		return -1;
++	}
++	fgets(buf, sizeof buf, fh);	/* eat line */
++	fgets(buf, sizeof buf, fh);
++
++	while (fgets(buf, sizeof buf, fh)) {
++		char *s, name[128];
++		s = get_name(name, buf);
++		if(is_dev_ip_addr_match(name, ipl)){
++			strncpy(wan_dev, name, 16);
++			err = 0;
++			break;
++		}
++	}
++
++	fclose(fh);
++	return err;
++}
++
++int set_traffic_speedtest_setting(int lport, int rport, unsigned int ipl, unsigned int ipr, unsigned int ppp, unsigned int flag, int duration, char role)
++{
++	int i = 0;
++	char cmd[128] = {0};
++	char wandev[32];
++	int cport_local = 0;
++
++	if(role == 'c'){
++		cport_local = lport;
++	}else{
++		cport_local = rport;
++	}
++	
++	for(i=0;i<8;i++){
++		if(cport_local == cport[i])
++			return 1;
++	}
++	for(i=0;i<8;i++){
++		if(cport[i] == 0){
++			cport[i] = cport_local;
++			break;
++		}
++	}
++
++	system("echo ctrl agg_num 8 > /proc/lro_wan");
++
++	if(0 == get_dev_by_ip(wandev, ipl))
++	{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd, "echo wandev=%s > /proc/tc3162/speed_test", wandev);
++		system(cmd);
++	}
++
++	if(ppp){
++		system("echo ppp > /proc/tc3162/speed_test");
++	}else{
++		system("echo ip > /proc/tc3162/speed_test");
++	}
++
++	ipr = htonl(ipr);
++	ipl = htonl(ipl);
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo gateway=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipr>>24), (ipr>>16)&0xFF, (ipr>>8)&0xFF, ipr&0xFF);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo mask=255.255.255.255 > /proc/tc3162/speed_test");
++	system(cmd);
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destip=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipr>>24), (ipr>>16)&0xFF, (ipr>>8)&0xFF, ipr&0xFF);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localip=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipl>>24), (ipl>>16)&0xFF, (ipl>>8)&0xFF, ipl&0xFF);
++	system(cmd);
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destport=%d > /proc/tc3162/speed_test",rport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localport=%d > /proc/tc3162/speed_test",lport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo duration=%d > /proc/tc3162/speed_test",duration);
++	system(cmd);
++
++	if(flag == 1){
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo tso_enable=1 > /proc/tc3162/speed_test");
++		system(cmd);
++	}else{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo tso_enable=0 > /proc/tc3162/speed_test");
++		system(cmd);
++	}
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo action=APPTEST_P > /proc/tc3162/speed_test");
++	system(cmd);	
++	
++	return 0;	
++}
++
++int set_traffic_speedtest_setting_downstream(int lport, int rport, unsigned int ipl, unsigned int ipr, unsigned int ppp, unsigned int flag, int duration, char role)
++{
++	int i = 0;
++	char cmd[128] = {0};
++	char wandev[32];
++	int cport_local = 0;
++
++	if(role == 'c'){
++		cport_local = lport;
++	}else{
++		cport_local = rport;
++	}
++	
++	for(i=0;i<8;i++){
++		if(cport_local == cport[i])
++			return 1;
++	}
++	for(i=0;i<8;i++){
++		if(cport[i] == 0){
++			cport[i] = cport_local;
++			break;
++		}
++	}
++	
++	system("echo ctrl agg_num 8 > /proc/lro_wan");	
++	
++	if(0 == get_dev_by_ip(wandev, ipl))
++	{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd, "echo wandev=%s > /proc/tc3162/speed_test", wandev);
++		system(cmd);
++	}
++
++
++	if(ppp){
++		system("echo ppp > /proc/tc3162/speed_test");
++	}else{
++		system("echo ip > /proc/tc3162/speed_test");
++	}
++
++	ipr = htonl(ipr);
++	ipl = htonl(ipl);
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo gateway=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipr>>24), (ipr>>16)&0xFF, (ipr>>8)&0xFF, ipr&0xFF);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo mask=255.255.255.255 > /proc/tc3162/speed_test");
++	system(cmd);
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destip=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipr>>24), (ipr>>16)&0xFF, (ipr>>8)&0xFF, ipr&0xFF);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localip=%d.%d.%d.%d > /proc/tc3162/speed_test",(ipl>>24), (ipl>>16)&0xFF, (ipl>>8)&0xFF, ipl&0xFF);
++	system(cmd);
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destport=%d > /proc/tc3162/speed_test",rport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localport=%d > /proc/tc3162/speed_test",lport);
++	system(cmd);
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo duration=%d > /proc/tc3162/speed_test",duration);
++	system(cmd);
++
++	if(flag == 1){
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo lro=1 > /proc/tc3162/speed_test");
++		system(cmd);
++	}else{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo lro=0 > /proc/tc3162/speed_test");
++		system(cmd);	
++	}
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo action=APPTEST_D > /proc/tc3162/speed_test");
++	system(cmd);	
++	
++	return 0;	
++}
+ 
+ /********************** Get/set test protocol structure ***********************/
+ 
+@@ -876,6 +1132,11 @@
+ 		iperf_printf(test, report_reverse, test->server_hostname);
+ 	}
+     } else {
++	    if(test->speedtest){
++	        memset(cport, 0, sizeof(cport));
++	        iperf_printf(test, "server speedtest reset\n");
++	        system("echo reset > /proc/tc3162/speed_test");
++	    }
+         len = sizeof(sa);
+         getpeername(test->ctrl_sck, (struct sockaddr *) &sa, &len);
+         if (getsockdomain(test->ctrl_sck) == AF_INET) {
+@@ -1008,6 +1269,8 @@
+         {"idle-timeout", required_argument, NULL, OPT_IDLE_TIMEOUT},
+         {"rcv-timeout", required_argument, NULL, OPT_RCV_TIMEOUT},
+         {"debug", no_argument, NULL, 'd'},
++        {"speedtest", no_argument, NULL, 'E'},
++        {"isppp", no_argument, NULL, 'g'},
+         {"help", no_argument, NULL, 'h'},
+         {NULL, 0, NULL, 0}
+     };
+@@ -1030,7 +1293,7 @@
+     char *client_username = NULL, *client_rsa_public_key = NULL, *server_rsa_private_key = NULL;
+ #endif /* HAVE_SSL */
+ 
+-    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:", longopts, NULL)) != -1) {
++    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:E:g", longopts, NULL)) != -1) {
+         switch (flag) {
+             case 'p':
+ 		portno = atoi(optarg);
+@@ -1074,6 +1337,12 @@
+ 		test->daemon = 1;
+ 		server_flag = 1;
+ 	        break;
++            case 'E':		
++                test->speedtest = atoi(optarg);
++		break;
++            case 'g':		
++		test->isppp = 1;		
++		break;
+             case '1':
+ 		test->one_off = 1;
+ 		server_flag = 1;
+@@ -1698,6 +1967,60 @@
+     }
+ }
+ 
++int iperf_speedtest_setting(struct iperf_test *test, struct iperf_stream *sp)
++{
++	uint32_t ipl, ipr;
++	int lport, rport;
++	int ppp = 0;
++	int i = 0;
++	int flag = 0;
++	
++	if(!test->speedtest)
++		return 0;
++
++	ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
++	ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	lport = ntohs(((struct sockaddr_in *) &sp->local_addr)->sin_port);
++	rport = ntohs(((struct sockaddr_in *) &sp->remote_addr)->sin_port);
++
++	if(test->isppp == 1)
++		ppp = test->isppp;
++	if(test->speedtest == 1)
++		flag = 0;
++	else
++		flag = 1;	
++	
++	return set_traffic_speedtest_setting(lport, rport, ipl, ipr, ppp, flag, test->duration,test->role);
++	
++}
++
++int iperf_speedtest_setting_downstream(struct iperf_test *test, struct iperf_stream *sp)
++{
++	uint32_t ipl, ipr;
++	int lport, rport;
++	int ppp = 0;
++	int i = 0;
++	int flag = 0;
++	
++	if(!test->speedtest)
++		return 0;
++
++	ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
++	ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	lport = ntohs(((struct sockaddr_in *) &sp->local_addr)->sin_port);
++	rport = ntohs(((struct sockaddr_in *) &sp->remote_addr)->sin_port);
++
++	if(test->isppp == 1)
++		ppp = test->isppp;
++	if(test->speedtest == 1)
++		flag = 0;
++	else
++		flag = 1;
++	
++	return set_traffic_speedtest_setting_downstream(lport, rport, ipl, ipr, ppp, flag, test->duration, test->role);
++	
++}
++
+ int
+ iperf_send(struct iperf_test *test, fd_set *write_setP)
+ {
+@@ -1722,6 +2045,7 @@
+ 	    iperf_time_now(&now);
+ 	streams_active = 0;
+ 	SLIST_FOREACH(sp, &test->streams, streams) {
++	    iperf_speedtest_setting(test, sp);
+ 	    if ((sp->green_light && sp->sender &&
+ 		 (write_setP == NULL || FD_ISSET(sp->socket, write_setP)))) {
+         if (multisend > 1 && test->settings->bytes != 0 && test->bytes_sent >= test->settings->bytes)
+@@ -1766,6 +2090,7 @@
+     struct iperf_stream *sp;
+ 
+     SLIST_FOREACH(sp, &test->streams, streams) {
++	iperf_speedtest_setting_downstream(test, sp);
+ 	if (FD_ISSET(sp->socket, read_setP) && !sp->sender) {
+ 	    if ((r = sp->rcv(sp)) < 0) {
+ 		i_errno = IESTREAMREAD;
+@@ -3330,6 +3655,8 @@
+     int tmp_sender_has_retransmits = test->sender_has_retransmits;
+ 
+     /* print final summary for all intervals */
++    char buf[64] = {0};
++    FILE *fp = NULL;
+ 
+     if (test->json_output) {
+         json_summary_streams = cJSON_CreateArray();
+@@ -3401,6 +3728,7 @@
+         double sender_time = 0.0, receiver_time = 0.0;
+     struct iperf_time temp_time;
+         double bandwidth;
++        iperf_size_t upload_bandwidth = 0, download_bandwidth = 0;
+ 
+         char mbuf[UNIT_LEN];
+         int stream_must_be_sender = current_mode * current_mode;
+@@ -3644,15 +3972,46 @@
+             }
+         }
+         }
++        if(test->speedtest){
++            fp = fopen("/proc/tc3162/speedtest_result_tr143", "r");
++            if(fp)
++            { 
++                while (fgets(buf, sizeof(buf), fp) != NULL)
++                {				
++                    if (strstr(buf,"TotalByteReceived") != NULL)
++                    {				
++                        sscanf(buf, "TotalByteReceived(Byte):(%llu)", &total_received);
++                    }
++                    else if (strstr(buf,"TotalByteSend") != NULL)
++                    {
++                        sscanf(buf, "TotalByteSend(Byte):(%llu)", &total_sent);
++                    }
++                    else if (strstr(buf,"TotalDownloadRate") != NULL)
++                    {
++                        sscanf(buf, "TotalDownloadRate(KB/s):(%llu)", &download_bandwidth);
++                    }
++                    else if (strstr(buf,"TotalUploadloadRate") != NULL)
++                    {
++                        sscanf(buf, "TotalUploadloadRate(KB/s):(%llu)", &upload_bandwidth);
++                    }					
++                }
++                fclose(fp);
++            }
+ 
++            system("echo ctrl agg_num 30 > /proc/lro_wan");						
++        }
+         if (test->num_streams > 1 || test->json_output) {
+             unit_snprintf(ubuf, UNIT_LEN, (double) total_sent, 'A');
+             /* If no tests were run, arbitrarily set bandwidth to 0. */
+-            if (sender_time > 0.0) {
+-                bandwidth = (double) total_sent / (double) sender_time;
+-            }
+-            else {
+-                bandwidth = 0.0;
++            if(upload_bandwidth){
++                bandwidth = (double)upload_bandwidth * 1000;
++            }else{
++                if (sender_time > 0.0) {
++                    bandwidth = (double) total_sent / (double) sender_time;
++                }
++                else {
++                    bandwidth = 0.0;
++                }
+             }
+             unit_snprintf(nbuf, UNIT_LEN, bandwidth, test->settings->unit_format);
+             if (test->protocol->id == Ptcp || test->protocol->id == Psctp) {
+@@ -3683,11 +4042,15 @@
+                 }
+                 unit_snprintf(ubuf, UNIT_LEN, (double) total_received, 'A');
+                 /* If no tests were run, set received bandwidth to 0 */
+-                if (receiver_time > 0.0) {
+-                    bandwidth = (double) total_received / (double) receiver_time;
+-                }
+-                else {
+-                    bandwidth = 0.0;
++                if(download_bandwidth){
++                    bandwidth = (double)download_bandwidth * 1000;
++                }else{
++                    if (receiver_time > 0.0) {
++                        bandwidth = (double) total_received / (double) receiver_time;
++                    }
++                    else {
++                        bandwidth = 0.0;
++                    }
+                 }
+                 unit_snprintf(nbuf, UNIT_LEN, bandwidth, test->settings->unit_format);
+                 if (test->json_output)
+diff -auNr old/src/iperf_client_api.c new/src/iperf_client_api.c
+--- old/src/iperf_client_api.c	2021-06-03 06:29:24.000000000 +0800
++++ new/src/iperf_client_api.c	2024-01-02 11:25:10.804098000 +0800
+@@ -509,6 +509,11 @@
+     else
+         rcv_timeout_us = 0;
+ 
++    if(test->speedtest){
++        iperf_printf(test, "client speedtest reset\n");
++        system("echo reset > /proc/tc3162/speed_test");
++    }
++	
+     startup = 1;
+     while (test->state != IPERF_DONE) {
+ 	memcpy(&read_set, &test->read_set, sizeof(fd_set));
+diff -auNr old/src/iperf.h new/src/iperf.h
+--- old/src/iperf.h	2021-06-03 06:29:24.000000000 +0800
++++ new/src/iperf.h	2024-01-02 11:23:56.793072000 +0800
+@@ -285,7 +285,8 @@
+     char     *congestion_used;			/* what was actually used */
+     char     *remote_congestion_used;		/* what the other side used */
+     char     *pidfile;				/* -P option */
+-
++    char     speedtest;
++    char     isppp;
+     char     *logfile;				/* --logfile option */
+     FILE     *outfile;
+ 

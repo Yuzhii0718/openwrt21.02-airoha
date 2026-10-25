@@ -1,0 +1,34 @@
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+include ecnt-api.mk
+else
+include $(BSP_API_DIR)/ecnt-api.mk
+endif
+include $(BSP_ROOTDIR)/ecnt-function.mk
+
+API_TARGET= ecnt_lib_portbind ecnt_lib_env
+INSTALL_TARGET= ecnt_lib_portbind ecnt_lib_env
+
+API_TARGET_CLEAN=$(addsuffix _clean, $(API_TARGET))
+
+.PHONY : sw_api
+sw_api: $(API_TARGET)
+sw_api_clean:$(API_TARGET_CLEAN)
+
+
+###########################################################################	
+ecnt_lib_portbind:
+	echo "Build ecnt portbind library."
+	$(call EcntApiMake, $(BSP_API_PORTBIND_LIB_DIR), all, ecnt_lib_portbind)
+
+ecnt_lib_portbind_clean:
+	echo "clean ecnt portbind library."
+	$(call EcntApiMake, $(BSP_API_PORTBIND_LIB_DIR), clean)
+###########################################################################
+ecnt_lib_env:
+	echo "Build ecnt env library."
+	$(call EcntApiMake, $(BSP_API_ENV_LIB_DIR), all, ecnt_lib_env)
+
+ecnt_lib_env_clean:
+	echo "clean ecnt env library."
+	$(call EcntApiMake, $(BSP_API_ENV_LIB_DIR), clean)
+###########################################################################	

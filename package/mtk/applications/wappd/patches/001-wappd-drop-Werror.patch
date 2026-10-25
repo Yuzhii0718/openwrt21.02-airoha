@@ -1,0 +1,27 @@
+--- a/Makefile
++++ b/Makefile
+@@ -18,9 +18,9 @@
+ include $(TOPDIR)/.config
+ 
+ ifndef CFLAGS
+-CFLAGS = -MMD -O2 -Wall -Werror -g
++CFLAGS = -MMD -O2 -Wall -g
+ endif
+-CFLAGS += -Werror -Wall -g
++CFLAGS += -Wall -g
+ 
+ CFLAGS += -I./include -fgnu89-inline
+ 
+@@ -222,10 +222,10 @@
+ all: $(HS_EXEC) $(HSCTRL_EXEC) $(WAPP_USR_INTF_LIB)
+ 
+ wapp_usr_intf/wapp_usr_intf_ctrl.o : wapp_usr_intf/wapp_usr_intf_ctrl.c wapp_usr_intf/wapp_usr_intf.h
+-	$(CC) -I./include -I./wapp_usr_intf -Werror -fPIC -c wapp_usr_intf/wapp_usr_intf_ctrl.c -o wapp_usr_intf/wapp_usr_intf_ctrl.o
++	$(CC) -I./include -I./wapp_usr_intf -fPIC -c wapp_usr_intf/wapp_usr_intf_ctrl.c -o wapp_usr_intf/wapp_usr_intf_ctrl.o
+ 
+ common/os_internal_lib.o: common/os_internal.c include/os.h
+-	$(CC) -I./include -Werror -fPIC -c common/os_internal.c -o common/os_internal_lib.o
++	$(CC) -I./include -fPIC -c common/os_internal.c -o common/os_internal_lib.o
+ 
+ $(WAPP_USR_INTF_LIB) : wapp_usr_intf/wapp_usr_intf_ctrl.o common/os_internal_lib.o include/os.h
+ 	ar r $(WAPP_USR_INTF_LIB) $(WAPP_USR_INTF_OBJS)

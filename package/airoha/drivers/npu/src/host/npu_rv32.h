@@ -1,0 +1,356 @@
+
+#ifndef _NPU_RV32_H_
+#define _NPU_RV32_H_
+/*npu offload Counter*/
+enum COUNTER_OFFSET{
+	GET_BUFID_FAIL = 0,		//00v
+	WHILE_COUNT = 1,		//01v
+	RX_DESC_DDONE,			//02
+	ALL_GET_PKT_COUNT,		//03v
+	DROP_PACKETS,			//04v
+	//ENQ_BUFID_FIAL_COUNT,		//05v
+	//ALL_ENQ_PKT_COUNT,		//06v
+	ENQ_DEQ_WHILE_COUNT,		//07v
+	ENQ_SRAM_COUNT,			//08v
+	ENQ_SRAM_FULL_COUNT,		//09vv
+	ENQ_SRAM_FAIL_COUNT,		//09v
+	DEQ_SRAM_COUNT,			//11v
+	DEQ_SRAM_FAIL_BUFID_COUNT,	//12v
+	DEQ_SRAM_FAIL_LEN_COUNT,	//13v
+	//DEQ_SRAM_NO_INFO_COUNT,		//14v
+	TO_HOSTAPD_COUNT,			//15vv
+	//ENQ_DRAM_FAIL_COUNT,		//16v
+	//ENQ_BUFID_ERROR_COUNT,		//17v
+	BA_IN_ORDER_PKT_COUNT,		//18v
+	BA_DUPL_PKT_COUNT,		//19v
+	BA_OLD_PKT_COUNT,		//20v
+	BA_WITHIN_WS_PKT_COUNT,		//21v
+	BA_POP_PKT_COUNT,		//22v
+	//BA_NO_PKT_IN_LIST_COUNT,	//23v
+	BA_AMSDU_COUNT,			//24v
+	AMPDU_COUNT,			//25v
+	//BA_NOT_DATA_PKT_COUNT,		//26v
+	//BA_RETURN_ERROR_COUNT,		//27v
+	BA_NO_MEM_COUNT,		//28v
+	TO_QDMA_COUNT,			//29v
+	TO_QDMA_COUNT_88,
+	TO_QDMA_COUNT_512,
+	TO_QDMA_COUNT_1518,
+	TO_QDMA_BYTE_LO,
+	TO_QDMA_BYTE_HI,
+	//ACCESS_PACKET,			//30v
+	HOST_APD_ERROR_COUNT,		//31v
+	//QDMA_RETURN_UNBIND_COUNT,	//32v
+	QDMA_RETURN_FAIL_COUNT,		//33v
+	//QDMA_RETURN_OK_COUNT,		//34v
+	SCATTER_CNT_MORE1,		//35v
+	BIGGER_PACKET,			//36v
+	ENQ_BIGPKT_TOSRAM_FAIL_COUNT,   //
+	SCATTER_PKT_ONE_BUFID,
+	GET_BUFID_FOR_BIGPKT_FAIL,
+	BIGPKT_TO_HOSTADPT_ERROR_COUNT,
+	API_HOSTADPT_SEND,
+	ENQ_BIGPKT_SRAM_FULL_COUNT,
+	ENQ_BIGPKT_SRAM_COUNT,
+	NO_BIGPKT_COUNT,
+	CHECK_BIGPKT,
+	CHECK_BIGPKT2,
+	CHECK_BIGPKT_OK,
+	CHECK_BIGPKT_ISLAST,
+	CHECK_BIGPKT_IDX_FAIL,
+	CHECK_BIGPKT_CNT_FAIL,
+	CHECK_BIGPKT_FAIL,
+	CHECK_BIGPKT_OVER_RETRY,
+	BIGPKT_TO_HOSTAPD_COUNT,
+	BIGPKT_DESC_FREE_COUNT,	
+	//BA_NODE_ALLOC_FAIL,	 	//37
+	//BA_NODE_ALLOC_COUNT,		//38
+	BA_AMSDU_MISS,			//39
+	//BA_TIMEOUT_FLUSH,		//40
+	BA_TIMEOUT_FLUSH100,		//42
+	BA_TIMEOUT_FLUSH250,		//43
+	BA_ENQ_DUP_SEQ,			//vv
+	BA_REORDERING_NODE_FREE_COUNT,	//10vv
+	BA_REORDERINT_NODE_ALLOC_FAIL, 	//11vv
+	BA_REORDERING_NODE_ALLOC_COUNT,	//12vv
+	BA_REORDERING_NODE_ALLOC_DRAM_COUNT,//vv
+	BA_ENQ_QLEN_ERROR_COUNT,
+	BA_WCID_ERROR,
+	HOSTADPT_API_Q_FULL,
+	ALL_GET_PKT_COUNT_512,	
+	ALL_GET_PKT_COUNT_1518,	
+	ALL_GET_PKT_COUNT_OTHER,
+	TDMA_TXDESC_FULL_COUNT,
+	TDMA_TXDESC_FULL_COUNT2,
+	TDMA_RX_GET_PKT,
+	RX_G4_PKT_NO_SN,
+	BAR_WCID_ERROR,
+	RX_PIPE_Q_FULL,
+	RX_PIPE_Q3_Q4_FULL,
+	PIPE_Q3_ENQ,
+	PIPE_Q3_DEQ,	
+	PIPE_Q4_ENQ,
+	PIPE_Q4_DEQ,
+	ENQ_PKT_TO_SLOWPATH_CASE1,
+	ENQ_PKT_TO_SLOWPATH_CASE2,
+	ENQ_PKT_TO_SLOWPATH_CASE3,
+	ENQ_PIPELINE_PKT_CNT,
+	DEQ_PIPELINE_PKT_CNT,
+	TDMA_TXRING_SEND,
+	BUFID_FREE_CASE1,
+	MSDU_PG_2G_PKT,
+	MSDU_PG_5G_PKT,
+	MSDU_PG_6G_PKT,
+	MSDU_PG_READ_FAIL,
+	TX_PKT_FROM_HOSTADPT,
+	TX_FULL_DESC,
+	TX_DONE_GET_PKT,
+	TX_SLOW_PATH_Q_FULL,
+	TX_SLOW_PATH_TXRING_FULL,
+	TX_SLOW_PATH_TOO_MUCH_PKT,
+	PN_CHECK_FAIL,
+	SKB_BUFID_STATE_ABNORMAL1,	//err state when freeing skb(setting to BUF_IN_POOL)
+	SKB_BUFID_STATE_ABNORMAL2,	//err state when filling skb to Refill ring(setting to BUF_IN_RING)
+	SKB_BUFID_STATE_ABNORMAL3,	//err state when checking skb from rxdmad_c ring(setting to BUF_FROM_RING)
+#ifdef TCSUPPORT_WLAN_INODE
+	PPE_RX_NULL_COUNT,
+	PPE_RX_SEND_COUNT,
+	CPU_RX_NULL_COUNT,
+	CPU_RX_SEND_COUNT,
+	CPU_TX_ERR_COUNT,
+	CPU_TX_SEND_COUNT,
+	NPU_RX_RECV_COUNT,
+	SKB_MALLOC_FAIL,
+	SKB_MALLOC_CNT,
+	SKB_FREE_CNT,
+	//below for rx path
+	//ENQ_SRAM_FAIL_COUNT,
+	//ENQ_SRAM_COUNT,
+	//DEQ_SRAM_COUNT,
+	//DEQ_SRAM_FAIL_BUFID_COUNT,
+	//DEQ_SRAM_FAIL_LEN_COUNT,
+	//TO_HOSTAPD_COUNT,
+	//HOST_APD_ERROR_COUNT,
+	ENQ_DEQ_WHILE_COUNT_C3,
+	PPE_RX_ERROR_COUNT1,
+	PPE_RX_ERROR_COUNT2,
+	PPE_RX_ERROR_COUNT3,
+	PPE_RX_ERROR_COUNT4,
+	PPE_RX_ERROR_COUNT5,
+#endif
+	COUNTER_BOTTOM			//47
+};
+#define NPU_COUNTER_NUM				COUNTER_BOTTOM
+enum COUNTER_OFFSET_UTIL{
+	QDMA_TXDESC_NULL_COUNT=0,	//0vv
+	QDMA_FREE_BUFID_COUNT,		//1vv
+	QDMA_UNBIND_COUNT,		//2vv
+	QDMA_TO_ENQ_FAIL_COUNT,		//3vv
+	QDMA_TO_ENQ_FAIL_COUNT2,	//4
+	//QDMA_TO_PPE_COUNT,		//5
+	QDMA_DONE_COUNT,		//6vv
+	SKB_FREE_BUFID_COUNT,		//7vv
+	SKB_ALLOC_BUFID_COUNT,		//8vv
+	SKB_BUFID_ALLOC_FAIL,		//9vv
+	QDMA_TX_DSCP_IDX_INVALID,	//13vv
+	QDMA_TX_DSCP_INFO_ERROR,	//14vv
+	QDMA_DONE_DROP_BIT_ERROR,		//15
+	API_BUFF_SEND_BIGPKT,
+	API_BUFF_SEND_NOMALPKT,
+	HOSTADPT_API_DONE_COUNT,
+	BMGR0_BUFID_OVERFLOW,
+	MSDU_SKB_FREE_BUFID_COUNT,
+	MSDU_SKB_BUFID_ALLOC_FAIL,
+	MSDU_SKB_ALLOC_COUNT,
+	TX_SKB_FREE_BUFID_COUNT,		//7vv
+	TX_SKB_ALLOC_BUFID_COUNT,		//8vv
+	TX_SKB_BUFID_ALLOC_FAIL,		//9vv
+	TX_DONE_VER_ABNORMAL,
+	TX_DONE_TOKEN_LEAK,
+	TX_BUF_POOL_ABNORMAL_ALLOC,
+	TX_BUF_POOL_ABNORMAL_FREE,
+	WIFI_TX_TOKEN_ABNORMAL,
+	WIFI_TX_MSDU_PKT,
+	//QDMA_TXDESC_PUSH_COUNT,		//16
+	//QDMA_TXDESC_PUSH2_COUNT,	//17
+	//QDMA_TXDESC_POP_COUNT,		//18
+	UCOUNTER_BOTTOM			//19
+};
+#define UTIL_COUNTER_NUM			UCOUNTER_BOTTOM
+#define BAND_NUM	4
+extern unsigned long int counter_base[BAND_NUM];
+#define NPU_COUNTER(addr,i)		(*((unsigned int *)((unsigned long int)addr + (i << 2))))
+#ifdef TCSUPPORT_NPU_WIFI_TX
+inline void show_wifi_offload_tx_counter(char band)
+{
+	unsigned long int *Counter_Base;
+	
+	if(counter_base[band]==0) return;
+	else Counter_Base = counter_base[band];
+	printk("------WIFI TX (band%d)----------\n", band);
+	printk("TDMA_RX_GET_PKT: \t\t%u\n", NPU_COUNTER(Counter_Base,TDMA_RX_GET_PKT));
+	printk("TX_PKT_FROM_HOSTADPT: \t\t%u\n", NPU_COUNTER(Counter_Base,TX_PKT_FROM_HOSTADPT));
+	printk("TX_FULL_DESC: \t\t\t%u\n", NPU_COUNTER(Counter_Base,TX_FULL_DESC));
+	printk("TX_DONE_GET_PKT: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_DONE_GET_PKT));
+	printk("TX_SLOW_PATH_Q_FULL: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_SLOW_PATH_Q_FULL));
+	printk("TX_SLOW_PATH_TXRING_FULL: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_SLOW_PATH_TXRING_FULL));
+	printk("TX_SLOW_PATH_TOO_MUCH_PKT: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_SLOW_PATH_TOO_MUCH_PKT));
+	//printk("TX_PKT_FROM_HOSTADP: \t\t%u(band%d)\n", NPU_COUNTER(Counter_Base,TX_PKT_FROM_HOSTADP),band);
+	Counter_Base = counter_base[2];
+	printk("TX_SKB_ALLOC_BUFID_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,TX_SKB_ALLOC_BUFID_COUNT));
+	printk("TX_SKB_FREE_BUFID_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,TX_SKB_FREE_BUFID_COUNT));
+	printk("TX_SKB_BUFID_ALLOC_FAIL\t\t%u\n", NPU_COUNTER(Counter_Base,TX_SKB_BUFID_ALLOC_FAIL));
+	printk("TX_DONE_VER_ABNORMAL: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_DONE_VER_ABNORMAL));
+	printk("TX_DONE_TOKEN_LEAK: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_DONE_TOKEN_LEAK));
+	printk("TX_BUF_POOL_ABNORMAL_ALLOC: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_BUF_POOL_ABNORMAL_ALLOC));
+	printk("TX_BUF_POOL_ABNORMAL_FREE: \t\t%u\n", NPU_COUNTER(Counter_Base, TX_BUF_POOL_ABNORMAL_FREE));
+	printk("WIFI_TX_TOKEN_ABNORMAL: \t\t%u\n", NPU_COUNTER(Counter_Base, WIFI_TX_TOKEN_ABNORMAL));
+	printk("WIFI_TX_MSDU_PKT: \t\t%u\n", NPU_COUNTER(Counter_Base, WIFI_TX_MSDU_PKT));
+	return;
+}
+#endif
+inline void show_wifi_offload_counter(char band)
+{
+	unsigned long int *Counter_Base;
+	
+	if(counter_base[band]==0) return;
+	else Counter_Base = counter_base[band];
+	printk("[%s debug counter ]\n", (band==0)?"2.4G/5G":"6G");	
+	printk("get packet while count:\t\t%u\n", NPU_COUNTER(Counter_Base,WHILE_COUNT));
+	printk("RX_DESC_DDONE\t\t\t%u\n", NPU_COUNTER(Counter_Base,RX_DESC_DDONE));
+	printk("ALL_GET_PKT_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,ALL_GET_PKT_COUNT));
+				//printk("ACCESS_PACKET\t\t\t%u\n", NPU_COUNTER(Counter_Base,ACCESS_PACKET));
+	printk("DROP_PACKETS\t\t\t%u\n", NPU_COUNTER(Counter_Base,DROP_PACKETS));
+	printk("TO_TDMA_COUNT\t\t\t%u\n", NPU_COUNTER(Counter_Base,TO_QDMA_COUNT));
+				//printk("ALL_ENQ_PKT_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,ALL_ENQ_PKT_COUNT));
+				//printk("ENQ_BUFID_FIAL_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_BUFID_FIAL_COUNT));
+				//printk("ENQ_BUFID_ERROR_COUNT:\t\t%u\n",NPU_COUNTER(Counter_Base, ENQ_BUFID_ERROR_COUNT));
+	printk("GET_BUFID_FAIL\t\t\t%u\n", NPU_COUNTER(Counter_Base,GET_BUFID_FAIL));
+				//printk("NO_BUFID\t\t\t%u\n", NPU_COUNTER(Counter_Base,NO_BUFID));
+	printk("SCATTER_CNT_MORE1\t\t%u\n", NPU_COUNTER(Counter_Base, SCATTER_CNT_MORE1));
+	printk("BIGGER_PACKET\t\t\t%u\n", NPU_COUNTER(Counter_Base,BIGGER_PACKET));
+	printk("SCATTER_PKT_ONE_BUFID\t\t%u\n", NPU_COUNTER(Counter_Base, SCATTER_PKT_ONE_BUFID));
+	printk("ENQ_BIGPKT_TOSRAM_FAIL_COUNT\t%u\n", NPU_COUNTER(Counter_Base, ENQ_BIGPKT_TOSRAM_FAIL_COUNT));
+	printk("------Enq & Deq Counter----------\n");
+	printk("ENQ_DEQ_WHILE_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_DEQ_WHILE_COUNT));
+	printk("ENQ_SRAM_COUNT:\t\t\t%u\n",NPU_COUNTER(Counter_Base,ENQ_SRAM_COUNT));
+	printk("ENQ_SRAM_FULL_COUNT:\t\t%u\n",NPU_COUNTER(Counter_Base,ENQ_SRAM_FULL_COUNT));
+	printk("ENQ_SRAM_FAIL_COUNT:\t\t%u\n",NPU_COUNTER(Counter_Base,ENQ_SRAM_FAIL_COUNT));
+	printk("DEQ_SRAM_COUNT:\t\t\t%u\nDEQ_SRAM_FAIL_BUFID_COUNT:\t%u\nDEQ_SRAM_FAIL_LEN_COUNT:\t\t%u\n",NPU_COUNTER(Counter_Base,DEQ_SRAM_COUNT),NPU_COUNTER(Counter_Base, DEQ_SRAM_FAIL_BUFID_COUNT), NPU_COUNTER(Counter_Base,DEQ_SRAM_FAIL_LEN_COUNT));
+				//printk("DEQ_SRAM_NO_INFO_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base, DEQ_SRAM_NO_INFO_COUNT));
+	printk("TO_HOSTAPD_COUNT\t%u\n", NPU_COUNTER(Counter_Base, TO_HOSTAPD_COUNT));
+				//printk("ENQ_DRAM_FAIL_COUNT:\t\t%u\n",NPU_COUNTER(Counter_Base, ENQ_DRAM_FAIL_COUNT));
+	printk("HOST_APD_ERROR_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, HOST_APD_ERROR_COUNT));
+
+	printk("HOSTADPT_API_Q_FULL:\t\t%u\n", NPU_COUNTER(Counter_Base, HOSTADPT_API_Q_FULL));
+	printk("API_HOSTADPT_SEND:\t\t%u\n", NPU_COUNTER(Counter_Base, API_HOSTADPT_SEND));
+	printk("RX_G4_PKT_NO_SN:\t\t\t%u\n", NPU_COUNTER(Counter_Base, RX_G4_PKT_NO_SN));
+	printk("------pipe queue----------\n");
+	printk("RX_PIPE_Q_FULL:\t\t\t%u\n", NPU_COUNTER(Counter_Base, RX_PIPE_Q_FULL));
+	printk("RX_PIPE_Q3_Q4_FULL:\t\t\t%u\n", NPU_COUNTER(Counter_Base, RX_PIPE_Q3_Q4_FULL));
+	printk("PIPE_Q3_ENQ:\t\t\t%u\n", NPU_COUNTER(Counter_Base, PIPE_Q3_ENQ));
+	printk("PIPE_Q3_DEQ:\t\t\t%u\n", NPU_COUNTER(Counter_Base, PIPE_Q3_DEQ));
+	printk("PIPE_Q4_ENQ:\t\t\t%u\n", NPU_COUNTER(Counter_Base, PIPE_Q4_ENQ));
+	printk("PIPE_Q4_DEQ:\t\t\t%u\n", NPU_COUNTER(Counter_Base, PIPE_Q4_DEQ));
+	printk("------Enq & Deq scatter packet Counter----------\n");
+	printk("NO_BIGPKT_COUNT:\t%u\n", NPU_COUNTER(Counter_Base, NO_BIGPKT_COUNT));
+	printk("GET_BUFID_FOR_BIGPKT_FAIL:\t%u\n", NPU_COUNTER(Counter_Base, GET_BUFID_FOR_BIGPKT_FAIL));
+	printk("BIGPKT_TO_HOSTADPT_ERROR_COUNT:\t%u\n", NPU_COUNTER(Counter_Base, BIGPKT_TO_HOSTADPT_ERROR_COUNT));
+	 
+	printk("ENQ_BIGPKT_SRAM_FULL_COUNT:\t%u\n", NPU_COUNTER(Counter_Base, ENQ_BIGPKT_SRAM_FULL_COUNT));
+	printk("ENQ_BIGPKT_SRAM_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, ENQ_BIGPKT_SRAM_COUNT));
+	printk("CHECK_BIGPKT:\t\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT));
+	printk("CHECK_BIGPKT2:\t\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT2));
+	printk("CHECK_BIGPKT_ISLAST:\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT_ISLAST));
+	printk("CHECK_BIGPKT_IDX_FAIL:\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT_IDX_FAIL));
+	printk("CHECK_BIGPKT_CNT_FAIL:\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT_CNT_FAIL));
+	printk("CHECK_BIGPKT_FAIL:\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT_FAIL));
+	printk("CHECK_BIGPKT_OVER_RETRY:\t\t%u\n", NPU_COUNTER(Counter_Base, CHECK_BIGPKT_OVER_RETRY));
+	printk("BIGPKT_TO_HOSTAPD_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,BIGPKT_TO_HOSTAPD_COUNT ));
+	printk("BIGPKT_DESC_FREE_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,BIGPKT_DESC_FREE_COUNT ));
+	printk("------TDMA----------\n");
+	printk("TDMA_TXDESC_FULL_COUNT: \t\t%u\n", NPU_COUNTER(Counter_Base,TDMA_TXDESC_FULL_COUNT ));
+	printk("TDMA_TXDESC_FULL_COUNT2: \t\t%u\n", NPU_COUNTER(Counter_Base,TDMA_TXDESC_FULL_COUNT2 ));
+	
+
+	printk("------BA Counter----------\n");
+	printk("BA1(in order):\t\t\t%u\nBA2(Dupl Packet):\t\t%u\nBA3(old packet):\t\t\t%u\nBA4(with in window):\t\t%u\nBA5(surpasses Win):\t\t%u\nBA_AMSDU:\t\t\t%u\n!AMPDU_COUNT:\t\t\t%u\n",
+		NPU_COUNTER(Counter_Base, BA_IN_ORDER_PKT_COUNT),NPU_COUNTER(Counter_Base, BA_DUPL_PKT_COUNT), NPU_COUNTER(Counter_Base,BA_OLD_PKT_COUNT), NPU_COUNTER(Counter_Base,BA_WITHIN_WS_PKT_COUNT), 
+		NPU_COUNTER(Counter_Base, BA_POP_PKT_COUNT), NPU_COUNTER(Counter_Base, BA_AMSDU_COUNT),  NPU_COUNTER(Counter_Base, AMPDU_COUNT));
+				//printk("BA_NO_PKT_IN_LIST_COUNT:\t%u\n", NPU_COUNTER(Counter_Base, BA_NO_PKT_IN_LIST_COUNT));
+				//printk("BA_NOT_DATA_PKT_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_NOT_DATA_PKT_COUNT));
+	printk("BA_NO_MEM_COUNT:\t\t\t%u\n", NPU_COUNTER(Counter_Base, BA_NO_MEM_COUNT));
+				//printk("BA_NODE_ALLOC_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_NODE_ALLOC_COUNT));
+				//printk("BA_NODE_ALLOC_FAIL:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_NODE_ALLOC_FAIL));
+	printk("BA_AMSDU_MISS:\t\t\t%u\n", NPU_COUNTER(Counter_Base, BA_AMSDU_MISS));
+				//printk("BA_TIMEOUT_FLUSH:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_TIMEOUT_FLUSH));
+	printk("BA_TIMEOUT_FLUSH100:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_TIMEOUT_FLUSH100));
+	printk("BA_TIMEOUT_FLUSH250:\t\t%u\n", NPU_COUNTER(Counter_Base, BA_TIMEOUT_FLUSH250));
+	printk("BA_ENQ_DUP_SEQ:\t\t\t%u\n", NPU_COUNTER(Counter_Base, BA_ENQ_DUP_SEQ));
+	printk("BA_REORDERING_NODE_ALLOC_COUNT\t%u\n", NPU_COUNTER(Counter_Base,BA_REORDERING_NODE_ALLOC_COUNT));
+	printk("BA_REORDERING_NODE_ALLOC_DRAM_COUNT\t%u\n", NPU_COUNTER(Counter_Base,BA_REORDERING_NODE_ALLOC_DRAM_COUNT));
+	printk("BA_REORDERING_NODE_FREE_COUNT\t%u\n", NPU_COUNTER(Counter_Base,BA_REORDERING_NODE_FREE_COUNT));
+	printk("BA_REORDERINT_NODE_ALLOC_FAIL\t%u\n", NPU_COUNTER(Counter_Base,BA_REORDERINT_NODE_ALLOC_FAIL));
+	printk("BA_ENQ_QLEN_ERROR_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,BA_ENQ_QLEN_ERROR_COUNT));
+	printk("BA_WCID_ERROR:\t\t\t%u\n", NPU_COUNTER(Counter_Base,BA_WCID_ERROR));
+	printk("BA_BAR_WCID_ERROR:\t\t\t%u\n", NPU_COUNTER(Counter_Base,BAR_WCID_ERROR));
+				
+	//printk("------TDMA return Counter----------\n");
+				//printk("TDMA_RETURN_UNBIND_COUNT:\t%u\n", NPU_COUNTER(Counter_Base, QDMA_RETURN_UNBIND_COUNT));
+				//printk("TDMA_RETURN_FAIL_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, QDMA_RETURN_FAIL_COUNT));
+				//printk("TDMA_RETURN_OK_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base, QDMA_RETURN_OK_COUNT));
+	printk("============ TEMP_DBG ==========\n");
+	printk("ENQ_PKT_TO_SLOWPATH_CASE1\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_PKT_TO_SLOWPATH_CASE1));
+	printk("ENQ_PKT_TO_SLOWPATH_CASE2\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_PKT_TO_SLOWPATH_CASE2));
+	printk("ENQ_PKT_TO_SLOWPATH_CASE3\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_PKT_TO_SLOWPATH_CASE3));
+	printk("ENQ_PIPELINE_PKT_CNT\t\t%u\n", NPU_COUNTER(Counter_Base,ENQ_PIPELINE_PKT_CNT));
+	printk("DEQ_PIPELINE_PKT_CNT\t\t%u\n", NPU_COUNTER(Counter_Base,DEQ_PIPELINE_PKT_CNT));
+	printk("TDMA_TXRING_SEND\t\t%u\n", NPU_COUNTER(Counter_Base,TDMA_TXRING_SEND));
+	//printk("BUFID_FREE_CASE1\t\t%u\n", NPU_COUNTER(Counter_Base,BUFID_FREE_CASE1));
+
+	printk("========= RRO related ======== \n");
+	printk("0:MSDU_PG_2G_PKT 1:IND_CMD_WHILE\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_PG_2G_PKT));
+	printk("0:MSDU_PG_5G_PKT 1:IND_CMD_DESC\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_PG_5G_PKT));
+	printk("0:MSDU_PG_6G_PKT 1:IND_CMD_SIG_FAIL\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_PG_6G_PKT));
+	printk("0:MSDU_PG_READ_FAIL 1:OLD_DUP_PKT\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_PG_READ_FAIL));
+	printk("0:RRO EXCEPT PKT 1:ALLOW_OLD_PN_CHK_PKT\t\t%u\n", NPU_COUNTER(Counter_Base,BUFID_FREE_CASE1));
+	printk("0:PN_CHECK_FAIL 1:SP_TOKEN\t\t%u\n", NPU_COUNTER(Counter_Base,PN_CHECK_FAIL));
+	printk("SKB_BUFID_STATE_ABNORMAL1\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_BUFID_STATE_ABNORMAL1));
+	printk("SKB_BUFID_STATE_ABNORMAL2\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_BUFID_STATE_ABNORMAL2));
+	printk("SKB_BUFID_STATE_ABNORMAL3\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_BUFID_STATE_ABNORMAL3));
+
+	Counter_Base = counter_base[2];
+
+	printk("============ TDMA Counter =============\n");
+	//printk("TDMA_TXDESC_NULL_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TXDESC_NULL_COUNT));
+	printk("TDMA_UNBIND_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_UNBIND_COUNT));
+				//printk("TDMA_TO_PPE_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TO_PPE_COUNT));
+	printk("TDMA_DONE_COUNT:\t\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_DONE_COUNT));
+	printk("TDMA_FREE_BUFID_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_FREE_BUFID_COUNT));
+	printk("TDMA_TO_ENQ_FAIL_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TO_ENQ_FAIL_COUNT));
+				//printk("TDMA_TO_ENQ_FAIL_COUNT2:\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TO_ENQ_FAIL_COUNT2));
+	printk("TDMA_TX_DSCP_IDX_INVALID:\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TX_DSCP_IDX_INVALID));
+	printk("TDMA_TX_DSCP_INFO_ERROR:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TX_DSCP_INFO_ERROR));
+	printk("TDMA_DONE_DROP_BIT_ERROR:\t%u\n", NPU_COUNTER(Counter_Base,QDMA_DONE_DROP_BIT_ERROR));
+				//printk("TDMA_TXDESC_PUSH_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TXDESC_PUSH_COUNT));
+				//printk("TDMA_TXDESC_PUSH2_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TXDESC_PUSH2_COUNT));
+				//printk("TDMA_TXDESC_POP_COUNT:\t\t%u\n", NPU_COUNTER(Counter_Base,QDMA_TXDESC_POP_COUNT));
+
+	printk("============ Bufid Counter ==========\n");
+	printk("SKB_ALLOC_BUFID_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_ALLOC_BUFID_COUNT));
+	printk("SKB_FREE_BUFID_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_FREE_BUFID_COUNT));
+	printk("SKB_BUFID_ALLOC_FAIL\t\t%u\n", NPU_COUNTER(Counter_Base,SKB_BUFID_ALLOC_FAIL));
+	printk("BMGR0_BUFID_OVERFLOW\t\t%u\n", NPU_COUNTER(Counter_Base,BMGR0_BUFID_OVERFLOW));
+
+	printk("============ Hostadpt API Counter ==========\n");
+	printk("API_BUFF_SEND_BIGPKT\t\t%u\n", NPU_COUNTER(Counter_Base,API_BUFF_SEND_BIGPKT));
+	printk("API_BUFF_SEND_NOMALPKT\t\t%u\n", NPU_COUNTER(Counter_Base,API_BUFF_SEND_NOMALPKT));
+	printk("HOSTADPT_API_DONE_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,HOSTADPT_API_DONE_COUNT));
+
+	printk("======= RRO MSDU PG SKB counter =======\n");
+	printk("MSDU_SKB_ALLOC_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_SKB_ALLOC_COUNT));
+	printk("MSDU_SKB_FREE_BUFID_COUNT\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_SKB_FREE_BUFID_COUNT));
+	printk("MSDU_SKB_BUFID_ALLOC_FAIL\t\t%u\n", NPU_COUNTER(Counter_Base,MSDU_SKB_BUFID_ALLOC_FAIL));
+	return;
+}
+#endif

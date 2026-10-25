@@ -1,0 +1,32 @@
+--- a/mt_wifi/common/op_class.c
++++ b/mt_wifi/common/op_class.c
+@@ -3022,9 +3022,13 @@
+ 
+ 	MTWF_PRINT("phy_mode=%x ht_bw=%d vht_bw=%d eht_bw=%d\n",
+ 				wdev->PhyMode, ht_bw, vht_bw, eht_bw);
++#ifdef MAP_VENDOR_SUPPORT
+ 	MTWF_PRINT("num_of_op_class=%d, is_40M_bw_disable=%d\n",
+ 				info->num_of_op_class,
+ 				info->is_40M_bw_disable);
++#else
++	MTWF_PRINT("num_of_op_class=%d\n", info->num_of_op_class);
++#endif
+ 	for (i = 0; i < info->num_of_op_class; i++) {
+ 		MTWF_PRINT("  op_class=%d, num_of_ch=%d\n",
+ 				info->opClassInfoExt[i].op_class,
+@@ -3048,6 +3052,7 @@
+ 
+ 		MTWF_PRINT("  - ch_list:%s\n", tmp_str);
+ 
++#ifdef MAP_VENDOR_SUPPORT
+ 		pos = tmp_str;
+ 		for (j = 0; j < info->opClassInfoExt[i].num_of_ch; j++) {
+ 			len = snprintf(pos, 1000, "%3d,", info->opClassInfoExt[i].ch_pref[j]);
+@@ -3065,6 +3070,7 @@
+ 		} else
+ 			*pos = '\0';
+ 		MTWF_PRINT("  - ch_pref:%s\n", tmp_str);
++#endif /* MAP_VENDOR_SUPPORT */
+ 	}
+ 
+ 	os_free_mem(tmp_str);

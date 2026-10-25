@@ -1,0 +1,14 @@
+Index: hostapd-2022-07-29-b704dc72/src/ap/dfs.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/src/ap/dfs.c
++++ hostapd-2022-07-29-b704dc72/src/ap/dfs.c
+@@ -1500,6 +1500,9 @@ int hostapd_is_dfs_required(struct hosta
+ {
+ 	int n_chans, n_chans1, start_chan_idx, start_chan_idx1, res;
+ 
++	if (iface->drv_flags & WPA_DRIVER_FLAGS_DFS_OFFLOAD)
++		return 0;	
++
+ 	if ((!(iface->drv_flags & WPA_DRIVER_FLAGS_DFS_OFFLOAD) &&
+ 	     !iface->conf->ieee80211h) ||
+ 	    !iface->current_mode ||

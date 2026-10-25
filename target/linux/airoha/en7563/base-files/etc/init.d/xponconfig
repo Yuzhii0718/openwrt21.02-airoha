@@ -1,0 +1,93 @@
+#!/bin/sh /etc/rc.common
+# (C) 2013 openwrt.org
+
+START=00
+
+start() {
+    echo "mknod /dev/hwnat0 c 220 0"
+    mknod /dev/hwnat0 c 220 0
+
+    echo "mknod /dev/qdma_lan c 119 0"
+    mknod /dev/qdma_lan c 119 0
+
+    echo "mknod /dev/qdma_wan c 120 0"
+    mknod /dev/qdma_wan c 120 0
+
+    echo "mknod /dev/fe c 226 0"
+    mknod /dev/fe c 226 0
+
+    echo "mknod /dev/pon c 190 0"
+    mknod /dev/pon c 190 0
+
+    echo "mknod /dev/xponmap c 210 0"
+    mknod /dev/xponmap c 210 0
+
+    echo "mknod /dev/ponvlan c 215 0"
+    mknod /dev/ponvlan c 215 0
+
+    echo "mknod /dev/ponmacfilter c 216 0"
+    mknod /dev/ponmacfilter c 216 0
+
+    echo "mknod /dev/xponigmp c 185 0"
+    mknod /dev/xpon_igmp c 185 0
+	
+    echo "mknod /dev/gponflow c 184 0"
+    mknod /dev/gpon_flow c 184 0
+	
+    echo "mknod /dev/epon_mac c 221 0"
+    mknod /dev/epon_mac c 221 0
+	
+    echo "mknod /dev/ifc c 241 0"
+    mknod /dev/ifc c 241 0
+
+    echo "insmod econet-bob.ko"
+    insmod /lib/modules/4.4.115/econet_bob.ko dualbob=7570
+
+	if [ -f "/proc/tc3162/wan_2_5" ]; then
+		echo "insmod ae_wan"
+	
+	else
+		echo "insmod econet-xpon_phy.ko"
+		insmod /lib/modules/5.4.55/phy.ko
+	
+		echo "insmod econet-xpon.ko"
+		insmod /lib/modules/5.4.55/xpon.ko
+
+		echo "insmod econet-xpon_int.ko"
+		insmod /lib/modules/5.4.55/xpon_int.ko
+		
+		echo "insmod econet-xpon_map.ko"
+		insmod /lib/modules/5.4.55/xponmap.ko
+
+		echo "insmod econet-pon_vlan.ko"
+		insmod /lib/modules/5.4.55/ponvlan.ko
+
+		echo "insmod econet-xpon_igmp.ko"
+		insmod /lib/modules/5.4.55/xpon_igmp.ko
+
+		echo "insmod econet-gpon_flow.ko"
+		insmod /lib/modules/5.4.55/gpon_flow.ko
+		
+		echo "insmod econet-ponmacfilter.ko"
+		insmod /lib/modules/5.4.55/ponmacfilter.ko
+
+		echo " echo 1 > /proc/sys/net/ipv4/ip_forward"
+		echo 1 > /proc/sys/net/ipv4/ip_forward
+
+		echo "touch /tmp/.xponconfig"
+		touch /tmp/.xponconfig
+
+		echo "ifconfig pon up"
+		ifconfig pon up
+		
+		echo "ifconfig omci up"
+		ifconfig omci up
+
+		echo "/bin/sh /etc/prodef.sh &"
+		/bin/sh /etc/prodef.sh &		
+	fi
+}
+
+stop() {
+        echo "Stopping"
+}

@@ -1,0 +1,20 @@
+{
+    "prod": {
+        "host": "A1599ER83NVYL8.iot.us-west-2.amazonaws.com",
+        "port": "8883",
+        "id": "33d05fbe99d84d45b49044e3e970de7c",
+        "name": "Thing Name"
+    },
+    "qa": {
+        "host": "ao55zpwxvt4q5.iot.eu-west-1.amazonaws.com",
+        "port": "8883",
+        "id": "33d05fbe99d84d45b49044e3e970de7c",
+        "name": "Thing Name"
+    },
+    "dev": {
+        "host": "ao55zpwxvt4q5.iot.eu-west-1.amazonaws.com",
+        "port": "8883",
+        "id": "33d05fbe99d84d45b49044e3e970de7c",
+        "name": "Thing Name"
+    }
+}

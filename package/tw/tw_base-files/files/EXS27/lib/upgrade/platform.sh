@@ -1,0 +1,1 @@
+../../../../../../../target/linux/airoha/base-files/lib/upgrade/platform.sh

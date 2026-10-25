@@ -1,0 +1,8 @@
+# Copyright (C) 2006 OpenWrt.org
+# Ports: '<GEPortNum>,<FEPortNum>,<POTSPortNum>,<E1PortNum>,<USBPortNum>,<WLANPortNum>,<ADSL2PortNum>,<VDSL2PortNum>'
+
+config ONU 'ONU'
+	option NPort 8
+	option Ports '4,0,2,0,2,2,0,0'
+	option HWVer 'ECNT-HW-V1.0' 		
+	option SWVer 'ECNT-SW-V1.0'

@@ -1,0 +1,11 @@
+--- a/scripts/Makefile	2022-04-23 15:54:08.320614000 +0800
++++ b/scripts/Makefile	2022-04-23 15:52:37.810612000 +0800
+@@ -24,7 +24,7 @@
+ HOSTCFLAGS_sortextable.o = -I$(srctree)/tools/include
+ HOSTCFLAGS_asn1_compiler.o = -I$(srctree)/include
+ HOSTLDLIBS_sign-file = -lcrypto
+-HOSTLDLIBS_extract-cert = -lcrypto
++HOSTLDLIBS_extract-cert = -lcrypto -lpthread
+ 
+ always		:= $(hostprogs-y) $(hostprogs-m)
+ 

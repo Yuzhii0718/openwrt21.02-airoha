@@ -1,0 +1,359 @@
+ARCH=$(shell uname -p)
+REDHAT="i686"
+UBUNTU="x86_64"
+
+include $(BSP_ROOTDIR)/ecnt-function.mk
+
+BSP_EXCLUSIVE_TARGET=busybox_bsp mxml_bsp igmpproxy_bsp ebtables_bsp br2684ctl_bsp tcci_bsp ecmh_bsp pppd_bsp brctl_bsp iptables_bsp
+BSP_EXCLUSIVE_TARGET_CLEAN=busybox_bsp_clean mxml_bsp_clean igmpproxy_bsp_clean ebtables_bsp_clean br2684ctl_bsp_clean tcci_bsp_clean ecmh_bsp_clean pppd_bsp_clean brctl_bsp_clean iptables_bsp_clean
+
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP_ENHANCE)),)
+ifneq ($(strip $(TCSUPPORT_CPU_EN7581)),)
+BSP_EXCLUSIVE_TARGET+= hal_map libmapd
+BSP_EXCLUSIVE_TARGET_CLEAN+=hal_map_clean libmapd_clean
+else
+BSP_EXCLUSIVE_TARGET+= hal_map 1905daemon libmapd mapd
+BSP_EXCLUSIVE_TARGET_CLEAN+=hal_map_clean 1905daemon_clean libmapd_clean mapd_clean
+endif
+endif
+
+bsp_exclusive:$(BSP_EXCLUSIVE_TARGET)
+bsp_exclusive_clean:$(BSP_EXCLUSIVE_TARGET_CLEAN)
+
+#Build sysstat
+sysstat:
+	echo "Build sysstat"
+	$(MAKE) -C $(APP_BSP_EXCLUSIVE_PUBLIC_DIR)/tools/sysstat-9.0.4
+	if test -e $(APP_BSP_EXCLUSIVE_PUBLIC_DIR)/tools/sysstat-9.0.4/mpstat; \
+	then echo "Compile sysstat success"; \
+	else echo "Compile sysstat error!"; exit 1; \
+	fi
+	$(call BspExclUsrBinInstall, $(APP_BSP_EXCLUSIVE_PUBLIC_DIR)/tools/sysstat-9.0.4, mpstat)
+	
+sysstat_clean:
+	echo "Clean sysstat"
+	$(MAKE) -C $(APP_BSP_EXCLUSIVE_PUBLIC_DIR)/tools/sysstat-9.0.4 clean
+	
+	
+#Build busybox for bsp
+busybox_bsp:
+	echo "Building Busybox for BSP"
+	cp $(APP_BSP_BUSYBOX_DIR)/busybox_config $(APP_BSP_BUSYBOX_DIR)/.config
+	echo "" > $(APP_BSP_BUSYBOX_DIR)/.depend
+	
+	$(MAKE) -C $(APP_BSP_BUSYBOX_DIR)
+	if test -e $(APP_BSP_BUSYBOX_DIR)/busybox; \
+	then echo "Compile BusyBox success"; \
+	else echo "Compile BusyBox error!"; exit 1; \
+	fi
+	$(MAKE) -C $(APP_BSP_BUSYBOX_DIR) install
+	
+ifneq ($(TCSUPPORT_TRACEROUTE),)
+	rm -f $(BSP_EXCL_FS)/usr/bin/traceroute
+	ln -fs ../../bin/busybox $(BSP_EXCL_FS)/usr/bin/traceroute
+endif
+
+busybox_bsp_menuconfig:
+	echo "busybox menuconfig"
+	echo "Building Busybox menuconfig"
+	cp $(APP_BSP_BUSYBOX_DIR)/busybox_config $(APP_BSP_BUSYBOX_DIR)/.config
+	$(MAKE) -C $(APP_BSP_BUSYBOX_DIR) menuconfig
+	cp $(APP_BSP_BUSYBOX_DIR)/.config  $(APP_BSP_BUSYBOX_DIR)/busybox_config
+	
+busybox_bsp_clean:
+	echo "Clean Busybox"
+	$(MAKE) -C $(APP_BSP_BUSYBOX_DIR) clean
+	
+busybox_1_26_2_bsp_menuconfig:
+	echo "busybox app menuconfig"
+	#copy if user make menuconfig
+	if test -e $(PROFILE_DIR)/busybox_1_26_2.config; \
+	then cp $(PROFILE_DIR)/busybox_1_26_2.config $(APP_BSP_BUSYBOX_DIR)/.config; \
+	fi
+	#copy mow kernel config as busybox_config to support release BSP
+	rm -f $(APP_BSP_BUSYBOX_DIR)/busybox1.26.2_config
+	$(MAKE) -C $(APP_BSP_BUSYBOX_DIR) menuconfig
+	cp $(APP_BSP_BUSYBOX_DIR)/.config  $(PROFILE_DIR)/busybox_1_26_2.config
+	
+###########################################################################################
+mxml_bsp:
+	echo "Build BSP mxml"
+	$(MAKE) -C $(APP_BSP_MXML_DIR)
+	if test -e $(APP_BSP_MXML_DIR)/libmxml.so.1.4; \
+	then echo "Compile mxml success"; \
+	else echo "Compile mxml error!"; exit 1; \
+	fi
+	$(STRIP) --strip-unneeded $(APP_BSP_MXML_DIR)/libmxml.so.1.4
+	$(MAKE) -C $(APP_BSP_MXML_DIR) install
+	cp -rf $(APP_BSP_MXML_DIR)/libmxml.so*  $(BSP_EXCL_LIB)
+	cp -rf $(APP_BSP_MXML_DIR)/mxml.h $(BSP_EXCL_INC)
+	
+mxml_bsp_clean:
+	echo "Clean BSP mxml"
+	$(MAKE) -C $(APP_BSP_MXML_DIR) clean
+###########################################################################################
+pppd_bsp:
+	echo "Build pppd"
+	$(MAKE) -C $(APP_BSP_PPPD_DIR)
+	if test -e $(APP_BSP_PPPD_DIR)/pppd/pppd; \
+	then echo "Compile pppd success"; \
+	else echo "Compile pppd error!"; exit 1; \
+	fi
+	if test -e $(APP_BSP_PPPD_DIR)/pppd/plugins/pppoatm/libpppoatm.so; \
+	then echo "Compile libpppoatm.so success"; \
+	else echo "Compile libpppoatm.so error!"; exit 1; \
+	fi
+	if test -e $(APP_BSP_PPPD_DIR)/pppd/plugins/rp-pppoe/libpppoe.so; \
+	then echo "Compile libpppoe.so success"; \
+	else echo "Compile libpppoe.so error!"; exit 1; \
+	fi
+#	if test -e $(APP_BSP_PPPD_DIR)/pppd/plugins/pppol2tp/pppol2tp.so; \
+#	then echo "Compile pppol2tp.so success"; \
+#	else echo "Compile pppol2tp.so error!"; exit 1; \
+	fi
+	$(call BspExclFsLibInstall, $(APP_BSP_PPPD_DIR)/pppd/plugins/pppoatm, libpppoatm.so)
+	$(call BspExclFsLibInstall, $(APP_BSP_PPPD_DIR)/pppd/plugins/rp-pppoe, libpppoe.so)
+#	$(call BspExclFsLibInstall, $(APP_BSP_PPPD_DIR)/pppd/plugins/pppol2tp, pppol2tp.so)
+	$(call BspExclUsrBinInstall, $(APP_BSP_PPPD_DIR)/pppd, pppd)
+
+pppd_bsp_clean:
+	echo "Clean pppd"
+	$(MAKE) -C $(APP_BSP_PPPD_DIR) clean
+###########################################################################################	
+#Build bridge-utils-1.5
+brctl_bsp:
+	echo "Build bridge-utils-1.5" 
+	$(MAKE) -C $(APP_BSP_BRCTL_DIR) 
+	if test -e $(APP_BSP_BRCTL_DIR)/brctl/brctl; \
+	then echo "Compile Brctl success"; \
+	else echo "Compile Brctl error!"; exit 1; \
+	fi
+	$(call BspExclUsrBinInstall, $(APP_BSP_BRCTL_DIR)/brctl, brctl)
+brctl_bsp_clean:
+	echo "Clean bridge-utils-1.5"
+	$(MAKE) -C $(APP_BSP_BRCTL_DIR) clean
+###########################################################################################	
+iptables_bsp:
+	echo "Build iptables 1.6.1"
+	# rm -f $(APP_BSP_IPTABLES_DIR)/Makefile 
+	# rm -f $(APP_BSP_IPTABLES_DIR)/configure 
+	touch -m $(APP_BSP_IPTABLES_DIR)/*
+	# cd $(APP_BSP_IPTABLES_DIR) && libtoolize --automake --copy --debug --force && ./autogen.sh 
+	cd $(APP_BSP_IPTABLES_DIR) && ./configure --host=$(HOST) --target=$(COMPILE_TOOLCHAIN) --with-kernel=$(IPTABLE_KERNEL_DIR) --prefix=$(APP_BSP_IPTABLES_INSTALL_DIR) --enable-static --disable-nftables --disable-shared CFLAGS="$(CFG_CFLAGS)"
+	$(MAKE) -C $(APP_BSP_IPTABLES_DIR)
+	$(MAKE) -C $(APP_BSP_IPTABLES_DIR) install
+	if test -e $(APP_BSP_IPTABLES_INSTALL_DIR)/sbin/xtables-multi; \
+	then echo "Compile iptables 1.6.1 success"; \
+	else echo "Compile iptables 1.6.1 error!"; exit 1; \
+	fi
+	$(STRIP) --strip-unneeded $(APP_BSP_IPTABLES_INSTALL_DIR)/sbin/xtables-multi
+	echo "Install iptables 1.6.1"
+	$(call BspExclUsrBinInstall, $(APP_BSP_IPTABLES_INSTALL_DIR)/sbin, iptables)
+	$(call BspExclUsrBinInstall, $(APP_BSP_IPTABLES_INSTALL_DIR)/sbin, xtables-multi)
+	
+iptables_bsp_clean:
+	echo "Clean iptables 1.6.1"
+	-$(MAKE) -C $(APP_BSP_IPTABLES_DIR) clean
+	-$(MAKE) -C $(APP_BSP_IPTABLES_DIR) distclean
+	echo "Uninstall iptables 1.6.1"
+	rm -rf $(APP_BSP_IPTABLES_INSTALL_DIR)
+	$(call BspExclUsrBinClean, iptables)
+###########################################################################################
+igmpproxy_bsp:
+	echo "Compile igmpproxy_bsp"
+	cd $(APP_BSP_IGMP_PROXY_DIR) && ./configure --host=mips-linux
+	$(MAKE)	-C $(APP_BSP_IGMP_PROXY_DIR)
+	if test -e $(APP_BSP_IGMP_PROXY_DIR)/src/igmpproxy; \
+	then echo "Compile igmpproxy success"; \
+	else echo "Compile igmpproxy error!"; exit 1; \
+	fi
+	$(call BspExclUsrBinInstall, $(APP_BSP_IGMP_PROXY_DIR)/src, igmpproxy)
+
+igmpproxy_bsp_clean:
+	echo "Clean igmpproxy_bsp"
+	-$(MAKE) -C $(APP_BSP_IGMP_PROXY_DIR) clean
+	-$(MAKE) -C $(APP_BSP_IGMP_PROXY_DIR) distclean
+	$(call BspExclUsrBinClean, igmpproxy)
+###########################################################################################
+#Build MLD proxy application
+ifneq ($(strip $(TCSUPPORT_MLD_PROXY)),)
+ecmh_bsp:
+	@echo "Build MLD proxy"
+	#cd $(APP_BSP_MLD_PROXY_DIR) && ./configure --host=mips-linux
+	$(MAKE) -C $(APP_BSP_MLD_PROXY_DIR)
+	@if test -e $(APP_BSP_MLD_PROXY_DIR)/src/ecmh; \
+	then echo "Compile MLD proxy success"; \
+	else echo "Compile MLD proxy error!"; exit 1; \
+	fi
+	$(STRIP) $(APP_BSP_MLD_PROXY_DIR)/src/ecmh
+	$(call BspExclUserFsBinInstall, $(APP_BSP_MLD_PROXY_DIR)/src, ecmh)
+
+ecmh_bsp_clean:
+	#cd $(APP_BSP_MLD_PROXY_DIR) && ./configure --host=mips-linux
+	$(MAKE) -C $(APP_BSP_MLD_PROXY_DIR) clean
+else
+ecmh_bsp:
+ecmh_bsp_clean:
+endif
+###########################################################################################
+ebtables_bsp:
+	$(MAKE)	-C $(APP_BSP_EBTABLES_DIR)
+	$(call BspExclUsrBinInstall, $(APP_BSP_EBTABLES_DIR), ebtables)		
+	$(call BspExclFsLibInstall, $(APP_BSP_EBTABLES_DIR), libebtc.so)
+	$(call BspExclFsLibInstall, $(APP_BSP_EBTABLES_DIR)/extensions, *.so)
+	$(call BspExclUsrEtcInstall, $(APP_BSP_EBTABLES_DIR), ethertypes)
+
+ebtables_bsp_clean:
+	$(MAKE)	-C $(APP_BSP_EBTABLES_DIR) clean
+###########################################################################################
+#Build br2684ctl
+br2684ctl_bsp:
+	echo "Building br2684ctl"
+ifneq ($(strip $(TCSUPPORT_SISM_HOST)),)
+	$(MAKE) -C $(APP_BSP_BR2684_DIR)
+	if test -e $(APP_BSP_BR2684_DIR)/br2684ctl; \
+	then echo "Compile Br2684ctl success"; \
+	else echo "Compile Br2684ctl error!"; exit 1; \
+	fi
+	$(call BspExclUsrBinInstall, $(APP_BSP_BR2684_DIR), br2684ctl)	
+endif
+br2684ctl_bsp_clean:
+	echo "Clean br2684ctl"
+ifneq ($(strip $(TCSUPPORT_SISM_HOST)),)
+	$(MAKE) -C $(APP_BSP_BR2684_DIR) clean
+endif
+###########################################################################################
+ifneq ($(strip $(TCSUPPORT_OPENWRT)),)
+tcci_bsp:
+else
+tcci_bsp:blapi
+endif
+	echo "Build tcci"
+ifeq ($(strip $(TCSUPPORT_OPENWRT)),)
+	cp $(APP_BSP_TCCI_COMMON_DIR)/common.c  $(APP_BSP_TCCI_DIR)
+	cp $(APP_BSP_TCCI_COMMON_DIR)/common.h  $(APP_BSP_TCCI_DIR)
+endif
+	$(MAKE) -C $(APP_BSP_TCCI_DIR)
+	if test -e $(APP_BSP_TCCI_DIR)/tcci; \
+	then echo "Compile tcci success"; \
+	else echo "Compile tcci error!"; exit 1; \
+	fi
+	rm -f $(BSP_EXCL_FS)/usr/bin/sys
+	ln -s tcci $(BSP_EXCL_FS)/usr/bin/sys
+ifneq ($(strip $(TCSUPPORT_I2C)),)
+	rm -f $(BSP_EXCL_FS)/usr/bin/sifm
+	ln -s tcci $(BSP_EXCL_FS)/usr/bin/sifm
+endif
+
+tcci_bsp_clean: blapi_clean
+	echo "Clean tcci"
+	$(MAKE) -C $(APP_BSP_TCCI_DIR) clean
+###########################################################################################
+
+ifneq ($(strip $(TCSUPPORT_MAP_1905DAEMON)),)
+1905daemon:
+	echo "Build 1905daemon"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_1905DAEMON_DIR)
+	if test -e $(APP_BSP_MAP_1905DAEMON_DIR)/p1905_managerd; \
+	then echo "Compile 1905daemon success"; \
+	else echo "Compile 1905daemon error!"; exit 1; \
+	fi
+	$(call BspExclUserFsBinInstall, $(APP_BSP_MAP_1905DAEMON_DIR), p1905_managerd)
+	$(call BspExclUserFsBinInstall, $(APP_BSP_MAP_1905DAEMON_DIR), 1905ctrl)
+endif
+		
+1905daemon_clean:
+	echo "Clean 1905daemon"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_1905DAEMON_DIR) clean
+endif
+else
+1905daemon:
+1905daemon_clean:
+endif
+
+ifneq ($(strip $(TCSUPPORT_MAP_LIBMAPD)),)
+libmapd:
+	echo "Build libmapd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_LIBMAPD_DIR)
+	if test -e $(APP_BSP_MAP_LIBMAPD_DIR)/libmapd_interface_client.so; \
+	then echo "Compile libmapd success"; \
+	else echo "Compile libmapd error!"; exit 1; \
+	fi
+	$(call BspExclFsLibInstall, $(APP_BSP_MAP_LIBMAPD_DIR), libmapd_interface_client.so)
+	#cp -rf $(APP_BSP_MAP_LIBMAPD_DIR)/libmapd_interface_client.so $(LIB_INSTALL_DIR)/
+	#cp -rf $(APP_BSP_MAP_LIBMAPD_DIR)/include/mapd_interface_ctrl.h $(LIB_INSTALL_DIR)/
+	$(call BspExclIncInstall, $(APP_BSP_MAP_LIBMAPD_DIR)/include,mapd_interface_ctrl.h)
+endif	
+
+libmapd_clean:
+	echo "Clean libmapd"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_LIBMAPD_DIR) clean
+endif
+else
+libmapd:
+libmapd_clean:
+endif
+
+ifneq ($(strip $(TCSUPPORT_ECNT_MAP)),)
+hal_map:
+	echo "Build hal_map"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_HAL_MAP_DIR)
+	if test -e $(APP_BSP_MAP_HAL_MAP_DIR)/libmap_hal.so; \
+	then echo "Compile hal_map success"; \
+	else echo "Compile hal_map error!"; exit 1; \
+	fi
+endif
+hal_map_clean:
+	echo "Clean hal_map"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_HAL_MAP_DIR) clean
+endif
+else
+hal_map:
+hal_map_clean:
+endif
+
+ifneq ($(strip $(TCSUPPORT_MAP_MAPDAEMON)),)
+mapd:
+	echo "Build map daemon"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_MAPD_DIR)
+	if test -e $(APP_BSP_MAP_MAPD_DIR)/mapd; \
+	then echo "Compile map daemon success"; \
+	else echo "Compile map daemon error!"; exit 1; \
+	fi
+	$(call BspExclUserFsBinInstall, $(APP_BSP_MAP_MAPD_DIR), mapd)
+	$(call BspExclUserFsBinInstall, $(APP_BSP_MAP_MAPD_DIR), mapd_cli)
+endif
+
+mapd_clean:
+	echo "Clean map daemon"
+ifneq ($(strip $(TC_BUILD_RELEASECODE)),)
+	echo "TC_BUILD_RELEASECODE"
+else
+	$(MAKE) -C $(APP_BSP_MAP_MAPD_DIR) clean
+endif
+else
+mapd:
+mapd_clean:
+endif
+###########################################################################################

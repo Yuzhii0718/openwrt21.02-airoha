@@ -1,0 +1,24 @@
+--- old/drivers/mtd/mtdpart.c	2022-12-08 21:41:45.755735000 +0800
++++ new/drivers/mtd/mtdpart.c	2022-12-09 21:15:03.654819000 +0800
+@@ -752,17 +752,16 @@
+ {
+ 	static int rootfs_found = 0;
+ 
+-	if (rootfs_found)
++	if (rootfs_found >= 2)
+ 		return;
+-
+-	if (!strcmp(part->mtd.name, "rootfs")) {
++	if (!strcmp(part->mtd.name, "rootfs") || !strcmp(part->mtd.name, "rootfs_slave")) {
+ 		run_parsers_by_type(part, MTD_PARSER_TYPE_ROOTFS);
+ 
+-		rootfs_found = 1;
++		rootfs_found = rootfs_found + 1;
+ 	}
+ 
+ 	if (IS_ENABLED(CONFIG_MTD_SPLIT_FIRMWARE) &&
+-	    !strcmp(part->mtd.name, SPLIT_FIRMWARE_NAME) &&
++	   ( !strcmp(part->mtd.name, SPLIT_FIRMWARE_NAME) ||  !strcmp(part->mtd.name, "tclinux_slave")) &&
+ 	    !of_find_property(mtd_get_of_node(&part->mtd), "compatible", NULL))
+ 		split_firmware(master, part);
+ }

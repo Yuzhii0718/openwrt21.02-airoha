@@ -1,0 +1,16 @@
+Index: netifd-2021-07-26-440eb064/system-linux.c
+===================================================================
+--- netifd-2021-07-26-440eb064.orig/system-linux.c
++++ netifd-2021-07-26-440eb064/system-linux.c
+@@ -890,6 +890,11 @@ retry:
+ 	if (dev->settings.flags & DEV_OPT_ISOLATE &&
+ 	    dev->settings.isolate)
+ 		system_bridge_set_isolated(dev, "1");
++
++	if(strncmp(dev->ifname,"eth",3) != 0 && strncmp(dev->ifname,"ra",2) != 0){
++		snprintf(buf, 64, "/sys/class/net/br-lan/brif/%s/multicast_router", dev->ifname);
++		system_set_sysctl(buf, "2");
++	}
+
+ 	return ret;
+ }

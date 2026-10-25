@@ -1,0 +1,124 @@
+#!/bin/sh /etc/rc.common
+# (C) 2013 openwrt.org
+
+START=21
+STOP=22
+
+#####################################################################
+#	This script is to modify the pcie path in etc/config/wireless	#
+#	due to compile option. Also modify the irq number to optimize	#
+#	the wifi performance.											#
+#	This script is only for mt76 architecture profile.				#
+#####################################################################
+
+#Common macros
+UCI_GET="uci get"
+UCI_SET="uci set"
+UCI_COMMIT="uci commit"
+UCI_COMMIT_WL="uci commit wireless"
+
+#pcie path macros
+PCIE_PATH_1_7915A="pci0000:00/0000:00:00.0/0000:01:00.0"
+PCIE_PATH_2_7915A="pci0000:00/0000:00:01.0/0000:02:00.0"
+PCIE_PATH_1_7915D="pci0000:00/0000:00:00.0/0000:01:00.0"
+PCIE_PATH_2_7915D="pci0000:00/0000:00:00.0/0000:01:00.0+1"
+
+#irq value macros
+IRQ_for_WIFI_PATH1="81"
+IRQ_for_WIFI_PATH2="82"
+IRQ_for_QDMALAN4="100"
+
+PROFILE_CFG=/userfs/profile.cfg
+if [ -f $PROFILE_CFG ] ; then
+    . $PROFILE_CFG
+fi
+
+set_wifi_interface_param(){
+	ethmac0=`ifconfig eth0 | grep HWaddr | awk '{ print $5 }'`
+	add="${ethmac0:15:2}"
+	#addr=$(printf "%02X\n" $((0x${add})))
+	addr1=$(printf "%02X\n" $((0x${add}+0x1)))
+	addr2=$(printf "%02X\n" $((0x${add}+0x2)))
+	#ethmac="${ethmac0:0:2}:${ethmac0:3:2}:${ethmac0:6:2}:${ethmac0:9:2}:${ethmac0:12:2}:${addr}"
+	ethmac1="${ethmac0:0:2}:${ethmac0:3:2}:${ethmac0:6:2}:${ethmac0:9:2}:${ethmac0:12:2}:${addr1}"
+	ethmac2="${ethmac0:0:2}:${ethmac0:3:2}:${ethmac0:6:2}:${ethmac0:9:2}:${ethmac0:12:2}:${addr2}"
+
+	macaddr=`$UCI_GET wireless.default_radio0.macaddr`
+	if [ -n "$macaddr" ]; then
+	if [ "$macaddr" != "$ethmac1" ]; then
+			$UCI_SET wireless.default_radio0.macaddr=$ethmac1
+			$UCI_COMMIT_WL
+	fi
+	fi
+
+	macaddr=`$UCI_GET wireless.default_radio1.macaddr`
+	if [ -n "$macaddr" ]; then
+	if [ "$macaddr" != "$ethmac2" ]; then
+			$UCI_SET wireless.default_radio1.macaddr=$ethmac2
+			$UCI_COMMIT_WL
+	fi
+	fi
+
+
+#check pcie path
+	if [ "$TCSUPPORT_FIRST_IF_MT7915N" != "" ]; then
+	if [ "$TCSUPPORT_SECOND_IF_MT7915E" != "" ]; then
+		#MT7915A case
+		pcie_path=`$UCI_GET wireless.radio0.path`
+		if [ "$pcie_path" != "$PCIE_PATH_1_7915A" ]; then
+			$UCI_SET wireless.radio0.path=$PCIE_PATH_1_7915A
+			$UCI_COMMIT_WL
+		fi
+
+		pcie_path=`$UCI_GET wireless.radio1.path`
+		if [ "$pcie_path" != "$PCIE_PATH_2_7915A" ]; then
+			$UCI_SET wireless.radio1.path=$PCIE_PATH_2_7915A
+			$UCI_COMMIT_WL
+		fi
+	fi
+	fi
+	
+	if [ "$TCSUPPORT_FIRST_IF_MT7915D" != "" ]; then
+		#MT7915D case
+		pcie_path=`$UCI_GET wireless.radio0.path`
+		if [ "$pcie_path" != "$PCIE_PATH_1_7915D" ]; then
+			$UCI_SET wireless.radio0.path=$PCIE_PATH_1_7915D
+			$UCI_COMMIT_WL
+		fi
+
+		pcie_path=`$UCI_GET wireless.radio1.path`
+		if [ "$pcie_path" != "$PCIE_PATH_2_7915D" ]; then
+			$UCI_SET wireless.radio1.path=$PCIE_PATH_2_7915D
+			$UCI_COMMIT_WL
+		fi
+	fi
+
+}
+
+set_wifi_lan_irq_smp_affinity()
+{
+	if [ "$TCSUPPORT_FIRST_IF_MT7915D" != "" ]; then
+		echo 2 > /proc/irq/$IRQ_for_WIFI_PATH1/smp_affinity
+		echo 2 > /proc/irq/$IRQ_for_QDMALAN4/smp_affinity
+	fi
+	
+	if [ "$TCSUPPORT_FIRST_IF_MT7915N" != "" ]; then
+	if [ "$TCSUPPORT_SECOND_IF_MT7915E" != "" ]; then
+		echo "mt76config: to do"
+	fi
+	fi
+}
+
+start() {
+if [ "$TCSUPPORT_WLAN_MT76_MAC80211" != "" ]; then
+	set_wifi_interface_param
+	set_wifi_lan_irq_smp_affinity
+else
+	echo "skip mt76 config script"
+fi
+}
+
+stop() {
+        echo "Stopping"
+}
+

@@ -1,0 +1,11 @@
+--- a/net/bridge/br_forward.c
++++ b/net/bridge/br_forward.c
+@@ -29,7 +29,7 @@ static inline int should_deliver(const s
+ 	return ((p->flags & BR_HAIRPIN_MODE) || skb->dev != p->dev) &&
+ 		br_allowed_egress(vg, skb) && p->state == BR_STATE_FORWARDING &&
+ 		nbp_switchdev_allowed_egress(p, skb) &&
+-		!br_skb_isolated(p, skb);
++		!br_skb_isolated(p, skb) && ecnt_global_vlan_allowed_egress(p->dev, skb->dev);
+ }
+ 
+ int br_dev_queue_push_xmit(struct net *net, struct sock *sk, struct sk_buff *skb)

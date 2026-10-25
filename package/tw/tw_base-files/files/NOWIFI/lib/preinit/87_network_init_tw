@@ -1,0 +1,40 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+preinit_network_init() {
+	echo "preinit network_init"
+	if [ -f /etc/crontabs/root ] ; then
+		echo "/etc/crontabs/root File exists"
+	else
+		echo "touch /etc/crontabs/root"
+		touch /etc/crontabs/root
+	fi
+	ports="$(uci -q get network.@device[0].ports)"
+	case "$ports" in
+	\'*)
+		uci -q delete network.@device[0].ports
+		for p in $(echo "$ports" | tr -d "'"); do
+			uci -q add_list network.@device[0].ports="$p"
+		done
+		;;
+	esac
+
+	uci set network.@device[0].stp='1'
+	uci commit network
+	proto=$(uci get network.lan.proto)
+	if [ "$proto" == "dhcp" ]; then
+		uci set network.lan.twipaddr='192.168.1.1'
+		uci set network.lan.twgateway='192.168.1.1'
+		uci set network.lan.twnetmask='255.255.255.0'
+		uci set network.lan.twdns='0.0.0.0'
+		uci set network.lan.reqip='192.168.1.1'
+		uci commit network
+	fi
+
+	disableTelnet=$(uci get system.@system[0].disableTelnet)
+	if [ "$disableTelnet" = "0" ]; then
+		telnetd &
+	fi
+}
+
+boot_hook_add preinit_main preinit_network_init

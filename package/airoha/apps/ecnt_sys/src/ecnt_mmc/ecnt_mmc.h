@@ -1,0 +1,73 @@
+/***************************************************************
+Copyright Statement:
+
+This software/firmware and related documentation (¡°Airoha Software¡±) 
+are protected under relevant copyright laws. The information contained herein 
+is confidential and proprietary to Airoha (HK) Limited (¡°Airoha¡±) and/or 
+its licensors. Without the prior written permission of Airoha and/or its licensors, 
+any reproduction, modification, use or disclosure of Airoha Software, and 
+information contained herein, in whole or in part, shall be strictly prohibited.
+
+Airoha (HK) Limited  AIROHA. ALL RIGHTS RESERVED.
+
+BY OPENING OR USING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY 
+ACKNOWLEDGES AND AGREES THAT THE SOFTWARE/FIRMWARE AND ITS 
+DOCUMENTATIONS (¡°AIROHA SOFTWARE¡±) RECEIVED FROM AIROHA 
+AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON AN ¡°AS IS¡± 
+BASIS ONLY. AIROHA EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES, 
+WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED 
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, 
+OR NON-INFRINGEMENT. NOR DOES AIROHA PROVIDE ANY WARRANTY 
+WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTIES WHICH 
+MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE AIROHA SOFTWARE. 
+RECEIVER AGREES TO LOOK ONLY TO SUCH THIRD PARTIES FOR ANY AND ALL 
+WARRANTY CLAIMS RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES 
+THAT IT IS RECEIVER¡¯S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD 
+PARTY ALL PROPER LICENSES CONTAINED IN AIROHA SOFTWARE.
+
+AIROHA SHALL NOT BE RESPONSIBLE FOR ANY AIROHA SOFTWARE RELEASES 
+MADE TO RECEIVER¡¯S SPECIFICATION OR CONFORMING TO A PARTICULAR 
+STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND 
+AIROHA'S ENTIRE AND CUMULATIVE LIABILITY WITH RESPECT TO THE AIROHA 
+SOFTWARE RELEASED HEREUNDER SHALL BE, AT AIROHA'S SOLE OPTION, TO 
+REVISE OR REPLACE THE AIROHA SOFTWARE AT ISSUE OR REFUND ANY SOFTWARE 
+LICENSE FEES OR SERVICE CHARGES PAID BY RECEIVER TO AIROHA FOR SUCH 
+AIROHA SOFTWARE.
+***************************************************************/
+
+#ifndef _ECNT_MMC_H
+#define _ECNT_MMC_H
+#include "libapi_lib_utility.h"
+
+#define MAX_FILE_NAME 128
+#if defined(TCSUPPORT_OPENWRT)
+#define PARTITION_CAL_DATA "art"
+#else
+#define PARTITION_CAL_DATA "calibrationdata"
+#endif
+#define DEV_DISK_LABEL_DIR "/dev/disk/by-partlabel/"
+
+int do_mmc_cal_op(int argc,char* argv[],void *p);
+
+int do_mmc_cal_op_fetch(int argc,char* argv[],void *p);
+int do_mmc_cal_op_store(int argc,char* argv[],void *p);
+int do_mmc_cal_op_swap(int argc,char* argv[],void *p);
+int do_mmc_cal_op_del(int argc,char* argv[],void *p);
+int do_mmc_cal_op_flip(int argc,char* argv[],void *p);
+int do_mmc_cal_op_dump(int argc,char* argv[],void *p);
+
+
+int mmc_write_from_file(char* partition_name, uint64_t start, uint64_t size, char* input_filename);
+int mmc_write_cal_from_file(uint64_t start, uint64_t size, char *input_filename);
+int mmc_write_from_var(char *partition_name, uint64_t start, uint64_t size, void *var);
+int mmc_read_to_file(char* partition_name, uint64_t start, uint64_t size, char* output_filename);
+int mmc_read_cal_to_file(uint64_t start, uint64_t size, char *output_filename);
+int mmc_read_to_var(char* partition_name, uint64_t start, uint64_t size, void* var);
+int mmc_io_control(char *partition_name, char*operation, uint64_t start, uint64_t size, char *filename);
+int mmc_cal_io_control(char*operation, uint64_t start, uint64_t size, char *filename);
+int mmc_del(char *partition_name, uint64_t start, uint64_t size);
+int mmc_cal_del(uint64_t start, uint64_t size);
+int mmc_flip_byte(char *partition_name, uint64_t start);
+int mmc_cal_flip_byte(uint64_t start);
+
+#endif

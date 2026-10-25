@@ -1,0 +1,96 @@
+Index: hostapd-2022-07-29-b704dc72/wpa_supplicant/config.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/wpa_supplicant/config.c
++++ hostapd-2022-07-29-b704dc72/wpa_supplicant/config.c
+@@ -2648,6 +2648,9 @@ static const struct parse_data ssid_fiel
+ 	{ INT_RANGE(mode, 0, 4) },
+ #endif /* CONFIG_MESH */
+ 	{ INT_RANGE(noscan, 0, 1) },
++#ifdef CONFIG_MTK_IEEE80211BE
++	{ INT_RANGE(mlo_capable, 0, 1) },
++#endif
+ 	{ INT_RANGE(proactive_key_caching, 0, 1) },
+ 	{ INT_RANGE(disabled, 0, 2) },
+ 	{ STR(id_str) },
+Index: hostapd-2022-07-29-b704dc72/wpa_supplicant/config_file.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/wpa_supplicant/config_file.c
++++ hostapd-2022-07-29-b704dc72/wpa_supplicant/config_file.c
+@@ -767,6 +767,9 @@ static void wpa_config_write_network(FIL
+ 	INT(mode);
+ 	INT(no_auto_peer);
+ 	INT(noscan);
++#ifdef CONFIG_MTK_IEEE80211BE
++	INT(mlo_capable);
++#endif
+ 	INT(mesh_fwding);
+ 	INT(frequency);
+ 	INT(enable_edmg);
+Index: hostapd-2022-07-29-b704dc72/wpa_supplicant/config_ssid.h
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/wpa_supplicant/config_ssid.h
++++ hostapd-2022-07-29-b704dc72/wpa_supplicant/config_ssid.h
+@@ -997,6 +997,9 @@ struct wpa_ssid {
+ 
+ 	int noscan;
+ 
++#ifdef CONFIG_MTK_IEEE80211BE
++	int mlo_capable;
++#endif
+ 	/**
+ 	 * mesh_rssi_threshold - Set mesh parameter mesh_rssi_threshold (dBm)
+ 	 *
+Index: hostapd-2022-07-29-b704dc72/wpa_supplicant/wps_supplicant.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/wpa_supplicant/wps_supplicant.c
++++ hostapd-2022-07-29-b704dc72/wpa_supplicant/wps_supplicant.c
+@@ -34,7 +34,7 @@
+ #include "p2p_supplicant.h"
+ #include "wps_supplicant.h"
+ #include "ubus.h"
+-
++#include "ml/ml_supplicant.h"
+ 
+ #ifndef WPS_PIN_SCAN_IGNORE_SEL_REG
+ #define WPS_PIN_SCAN_IGNORE_SEL_REG 3
+@@ -365,6 +365,10 @@ static void wpas_wps_remove_dup_network(
+ static int wpa_supplicant_wps_cred(void *ctx,
+ 				   const struct wps_credential *cred)
+ {
++#ifdef CONFIG_MTK_IEEE80211BE
++	struct wpa_bss *bss = NULL;
++	const u8 *ml_ie;
++#endif	
+ 	struct wpa_supplicant *wpa_s = ctx;
+ 	struct wpa_ssid *ssid = wpa_s->current_ssid;
+ 	u16 auth_type;
+@@ -682,6 +686,29 @@ static int wpa_supplicant_wps_cred(void
+ 	wpas_wps_remove_dup_network(wpa_s, ssid);
+ 
+ #ifndef CONFIG_NO_CONFIG_WRITE
++#ifdef CONFIG_MTK_IEEE80211BE
++	dl_list_for_each(bss, &wpa_s->bss_id, struct wpa_bss, list_id) {
++		if (os_memcmp(wpa_s->bssid, bss->bssid, ETH_ALEN) != 0)
++			continue;
++
++		ml_ie = ml_get_ie(wpa_bss_ie_ptr(bss), bss->ie_len, ML_CTRL_TYPE_BASIC);
++		if (ml_ie) {
++			struct wpa_ml_ie_parse ml;
++			wpa_printf(MSG_DEBUG, "WPS: MLO capable " MACSTR,
++					MAC2STR(bss->bssid));
++			if (ml_parse_ie(&ml_ie[3], ml_ie[1] - 1, &ml, NULL) == 0) {
++				wpa_printf(MSG_DEBUG, "WPS: eml_cap_present:%d " MACSTR,
++						ml.eml_cap_present,
++						MAC2STR(bss->bssid));
++				ssid->mlo_capable = 1; //ml.eml_cap_present;
++			}
++		} else
++			wpa_printf(MSG_DEBUG, "WPS: MLO not capable " MACSTR,
++					MAC2STR(bss->bssid));
++		break;
++	}
++#endif /* CONFIG_MTK_IEEE80211BE */
++
+ 	if (wpa_s->conf->update_config &&
+ 	    wpa_config_write(wpa_s->confname, wpa_s->conf)) {
+ 		wpa_printf(MSG_DEBUG, "WPS: Failed to update configuration");

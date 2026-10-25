@@ -1,0 +1,396 @@
+diff -auNr old/src/iperf_api.c new/src/iperf_api.c
+--- old/src/iperf_api.c	2024-09-03 12:29:23.829438000 +0800
++++ new/src/iperf_api.c	2024-08-30 14:13:54.315803000 +0800
+@@ -43,6 +43,7 @@
+ #include <fcntl.h>
+ #include <sys/socket.h>
+ #include <sys/types.h>
++#include <ifaddrs.h>
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+ #include <netdb.h>
+@@ -105,6 +106,8 @@
+ static cJSON *JSON_read(int fd);
+ 
+ int cport[8] = {0};
++struct in6_addr ipl_v6 = {0}, ipr_v6= {0};
++
+ 
+ /*************************** Print usage functions ****************************/
+ 
+@@ -800,6 +803,39 @@
+ 	return p + 1;
+ }
+ 
++
++
++static int is_dev_ipv6_addr_match(char *wan_name, struct in6_addr *ipl_v6)
++{
++	struct ifaddrs *ifaddr, *ifa;
++	int family, s, ret = 0;
++	char host[NI_MAXHOST];
++	
++	if(getifaddrs(&ifaddr) == -1){
++		perror("getifaddrs");
++		exit(EXIT_FAILURE);
++	}
++	for(ifa = ifaddr; ifa!= NULL; ifa = ifa->ifa_next){
++		if(ifa->ifa_addr == NULL)
++			continue;
++		family = ifa->ifa_addr->sa_family;
++		if(family == AF_INET6 && strcmp(ifa->ifa_name, wan_name) == 0){
++			s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in6), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
++			if(s != 0){
++				printf("getnameinfo() failed: %s\n", gai_strerror(s));
++				break;
++			}
++			struct sockaddr_in6 *ipv6 = (struct sockaddr_in6 *)ifa->ifa_addr;
++			if(memcmp(&ipv6->sin6_addr, ipl_v6, sizeof(struct in6_addr)) == 0){
++				ret = 1;
++				break;
++			}
++		}
++	}
++	freeifaddrs(ifaddr);
++	return ret;
++}
++
+ static int is_dev_ip_addr_match(char *wan_name, unsigned int ipl)
+ {
+ 	struct ifreq ifr;
+@@ -824,6 +860,33 @@
+ 	return ret;
+ }
+ 
++static int get_dev_by_ipv6(char *wan_dev, struct in6_addr *ipl)
++{
++	FILE *fh;
++	char buf[512];
++	int err = -1;
++
++	fh = fopen("/proc/net/dev", "r");
++	if (!fh) {
++		return -1;
++	}
++	fgets(buf, sizeof buf, fh);	/* eat line */
++	fgets(buf, sizeof buf, fh);
++
++	while (fgets(buf, sizeof buf, fh)) {
++		char *s, name[128];
++		s = get_name(name, buf);
++		if(is_dev_ipv6_addr_match(name, &ipl_v6)){
++			strncpy(wan_dev, name, 16);
++			err = 0;
++			break;
++		}
++	}
++
++	fclose(fh);
++	return err;
++}
++
+ static int get_dev_by_ip(char *wan_dev, unsigned int ipl)
+ {
+ 	FILE *fh;
+@@ -851,6 +914,95 @@
+ 	return err;
+ }
+ 
++int set_traffic_speedtest_setting_v6(int lport, int rport, struct in6_addr *ipl, struct in6_addr *ipr, unsigned int ppp, unsigned int flag, int duration, char role)
++{
++	int i = 0;
++	char cmd[128] = {0};
++	char wandev[32];
++	int cport_local = 0;
++	int ipv6l_tmp[8] = {0}, ipv6r_tmp[8] = {0};
++	int idx = 0;
++	
++	if(role == 'c'){
++		cport_local = lport;
++	}else{
++		cport_local = rport;
++	}
++	
++	for(i=0;i<8;i++){
++		if(cport_local == cport[i])
++			return 1;
++	}
++	for(i=0;i<8;i++){
++		if(cport[i] == 0){
++			cport[i] = cport_local;
++			break;
++		}
++	}
++
++	system("echo ctrl agg_num 8 > /proc/lro_wan");
++
++	if(0 == get_dev_by_ipv6(wandev, &ipl_v6))
++	{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd, "echo wandev=%s > /proc/tc3162/speed_test", wandev);
++		system(cmd);
++	}
++	
++	system("echo IPv6 > /proc/tc3162/speed_test");
++	
++	if(ppp){
++		system("echo ppp > /proc/tc3162/speed_test");
++	}else{
++		system("echo ip > /proc/tc3162/speed_test");
++	}
++
++	for( idx = 0 ; idx < 8 ; idx++ ){
++			ipv6r_tmp[idx] = htons(ipr_v6.s6_addr16[idx]);
++			ipv6l_tmp[idx] = htons(ipl_v6.s6_addr16[idx]);
++		}
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destip=%X:%X:%X:%X:%X:%X:%X:%X > /proc/tc3162/speed_test", ipv6r_tmp[0], ipv6r_tmp[1], ipv6r_tmp[2], ipv6r_tmp[3], ipv6r_tmp[4], ipv6r_tmp[5], ipv6r_tmp[6], ipv6r_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo host=%X:%X:%X:%X:%X:%X:%X:%X > /proc/tc3162/speed_test", ipv6l_tmp[0], ipv6l_tmp[1], ipv6l_tmp[2], ipv6l_tmp[3], ipv6l_tmp[4], ipv6l_tmp[5], ipv6l_tmp[6], ipv6l_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destport=%d > /proc/tc3162/speed_test",rport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localport=%d > /proc/tc3162/speed_test",lport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo duration=%d > /proc/tc3162/speed_test",duration);
++	system(cmd);
++
++	if(flag == 1){
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo tso_enable=1 > /proc/tc3162/speed_test");
++		system(cmd);
++	}else{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo tso_enable=0 > /proc/tc3162/speed_test");
++		system(cmd);
++	}
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"ping6 -I %X:%X:%X:%X:%X:%X:%X:%X -c 1 %X:%X:%X:%X:%X:%X:%X:%X &", ipv6l_tmp[0], ipv6l_tmp[1], ipv6l_tmp[2], ipv6l_tmp[3], ipv6l_tmp[4], ipv6l_tmp[5], ipv6l_tmp[6], ipv6l_tmp[7], ipv6r_tmp[0], ipv6r_tmp[1], ipv6r_tmp[2], ipv6r_tmp[3], ipv6r_tmp[4], ipv6r_tmp[5], ipv6r_tmp[6], ipv6r_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo action=APPTEST_P > /proc/tc3162/speed_test");
++	system(cmd);
++	
++	return 0;	
++}
++
+ int set_traffic_speedtest_setting(int lport, int rport, unsigned int ipl, unsigned int ipr, unsigned int ppp, unsigned int flag, int duration, char role)
+ {
+ 	int i = 0;
+@@ -937,6 +1089,96 @@
+ 	return 0;	
+ }
+ 
++int set_traffic_speedtest_setting_downstream_v6(int lport, int rport, struct in6_addr *ipl, struct in6_addr *ipr, unsigned int ppp, unsigned int flag, int duration, char role)
++{
++	int i = 0;
++	char cmd[128] = {0};
++	char wandev[32];
++	int cport_local = 0;
++	int ipv6l_tmp[8] = {0}, ipv6r_tmp[8] = {0};
++	int idx = 0;
++
++	if(role == 'c'){
++		cport_local = lport;
++	}else{
++		cport_local = rport;
++	}
++	
++	for(i=0;i<8;i++){
++		if(cport_local == cport[i])
++			return 1;
++	}
++	for(i=0;i<8;i++){
++		if(cport[i] == 0){
++			cport[i] = cport_local;
++			break;
++		}
++	}
++
++	system("echo ctrl agg_num 8 > /proc/lro_wan");
++
++	if(0 == get_dev_by_ipv6(wandev, &ipl_v6))
++	{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd, "echo wandev=%s > /proc/tc3162/speed_test", wandev);
++		system(cmd);
++	}
++	
++	
++	system("echo IPv6 > /proc/tc3162/speed_test");
++
++	if(ppp){
++		system("echo ppp > /proc/tc3162/speed_test");
++	}else{
++		system("echo ip > /proc/tc3162/speed_test");
++	}
++
++	for( idx = 0 ; idx < 8 ; idx++ ){
++			ipv6r_tmp[idx] = htons(ipr_v6.s6_addr16[idx]);
++			ipv6l_tmp[idx] = htons(ipl_v6.s6_addr16[idx]);
++		}
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destip=%X:%X:%X:%X:%X:%X:%X:%X > /proc/tc3162/speed_test", ipv6r_tmp[0], ipv6r_tmp[1], ipv6r_tmp[2], ipv6r_tmp[3], ipv6r_tmp[4], ipv6r_tmp[5], ipv6r_tmp[6], ipv6r_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo host=%X:%X:%X:%X:%X:%X:%X:%X > /proc/tc3162/speed_test", ipv6l_tmp[0], ipv6l_tmp[1], ipv6l_tmp[2], ipv6l_tmp[3], ipv6l_tmp[4], ipv6l_tmp[5], ipv6l_tmp[6], ipv6l_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo destport=%d > /proc/tc3162/speed_test",rport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo localport=%d > /proc/tc3162/speed_test",lport);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo duration=%d > /proc/tc3162/speed_test",duration);
++	system(cmd);
++
++	if(flag == 1){
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo lro=1 > /proc/tc3162/speed_test");
++		system(cmd);
++	}else{
++		memset(cmd,0,sizeof(cmd));
++		sprintf(cmd,"echo lro=0 > /proc/tc3162/speed_test");
++		system(cmd);	
++	}
++
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"ping6 -I %X:%X:%X:%X:%X:%X:%X:%X -c 1 %X:%X:%X:%X:%X:%X:%X:%X &", ipv6l_tmp[0], ipv6l_tmp[1], ipv6l_tmp[2], ipv6l_tmp[3], ipv6l_tmp[4], ipv6l_tmp[5], ipv6l_tmp[6], ipv6l_tmp[7], ipv6r_tmp[0], ipv6r_tmp[1], ipv6r_tmp[2], ipv6r_tmp[3], ipv6r_tmp[4], ipv6r_tmp[5], ipv6r_tmp[6], ipv6r_tmp[7]);
++	system(cmd);
++	
++	memset(cmd,0,sizeof(cmd));
++	sprintf(cmd,"echo action=APPTEST_D > /proc/tc3162/speed_test");
++	system(cmd);
++	
++	return 0;	
++}
++
+ int set_traffic_speedtest_setting_downstream(int lport, int rport, unsigned int ipl, unsigned int ipr, unsigned int ppp, unsigned int flag, int duration, char role)
+ {
+ 	int i = 0;
+@@ -1271,6 +1513,7 @@
+         {"debug", no_argument, NULL, 'd'},
+         {"speedtest", no_argument, NULL, 'E'},
+         {"isppp", no_argument, NULL, 'g'},
++        {"is_ipv6", no_argument, NULL, 'z'},
+         {"help", no_argument, NULL, 'h'},
+         {NULL, 0, NULL, 0}
+     };
+@@ -1293,7 +1536,7 @@
+     char *client_username = NULL, *client_rsa_public_key = NULL, *server_rsa_private_key = NULL;
+ #endif /* HAVE_SSL */
+ 
+-    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:E:g", longopts, NULL)) != -1) {
++    while ((flag = getopt_long(argc, argv, "p:f:i:D1VJvsc:ub:t:n:k:l:P:Rw:B:M:N46S:L:ZO:F:A:T:C:dI:hX:E:g:z", longopts, NULL)) != -1) {
+         switch (flag) {
+             case 'p':
+ 		portno = atoi(optarg);
+@@ -1343,6 +1586,9 @@
+             case 'g':		
+ 		test->isppp = 1;		
+ 		break;
++			case 'z':		
++		test->is_ipv6 = 1;		
++		break;
+             case '1':
+ 		test->one_off = 1;
+ 		server_flag = 1;
+@@ -1974,12 +2220,19 @@
+ 	int ppp = 0;
+ 	int i = 0;
+ 	int flag = 0;
++	int is_v6 = 0;
++	int idx = 0;
+ 	
+ 	if(!test->speedtest)
+ 		return 0;
+-
+-	ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
+-	ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	
++	if(test->is_ipv6 == 1){
++		ipl_v6 = ((struct sockaddr_in6 *) &sp->local_addr)->sin6_addr;
++		ipr_v6 = ((struct sockaddr_in6 *) &sp->remote_addr)->sin6_addr;
++	}else{
++		ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
++		ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	}
+ 	lport = ntohs(((struct sockaddr_in *) &sp->local_addr)->sin_port);
+ 	rport = ntohs(((struct sockaddr_in *) &sp->remote_addr)->sin_port);
+ 
+@@ -1989,8 +2242,10 @@
+ 		flag = 0;
+ 	else
+ 		flag = 1;	
+-	
+-	return set_traffic_speedtest_setting(lport, rport, ipl, ipr, ppp, flag, test->duration,test->role);
++	if(test->is_ipv6 == 1)
++		return set_traffic_speedtest_setting_v6(lport, rport, &ipl_v6, &ipr_v6, ppp, flag, test->duration,test->role);
++	else
++		return set_traffic_speedtest_setting(lport, rport, ipl, ipr, ppp, flag, test->duration,test->role);
+ 	
+ }
+ 
+@@ -2001,12 +2256,17 @@
+ 	int ppp = 0;
+ 	int i = 0;
+ 	int flag = 0;
+-	
++	int idx = 0;
+ 	if(!test->speedtest)
+ 		return 0;
+ 
+-	ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
+-	ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	if(test->is_ipv6 == 1){
++		ipl_v6 = ((struct sockaddr_in6 *) &sp->local_addr)->sin6_addr;
++		ipr_v6 = ((struct sockaddr_in6 *) &sp->remote_addr)->sin6_addr;
++	}else{
++		ipl = ((struct sockaddr_in *) &sp->local_addr)->sin_addr.s_addr;
++		ipr = ((struct sockaddr_in *) &sp->remote_addr)->sin_addr.s_addr;
++	}
+ 	lport = ntohs(((struct sockaddr_in *) &sp->local_addr)->sin_port);
+ 	rport = ntohs(((struct sockaddr_in *) &sp->remote_addr)->sin_port);
+ 
+@@ -2016,8 +2276,11 @@
+ 		flag = 0;
+ 	else
+ 		flag = 1;
+-	
+-	return set_traffic_speedtest_setting_downstream(lport, rport, ipl, ipr, ppp, flag, test->duration, test->role);
++
++	if(test->is_ipv6 == 1)
++		return set_traffic_speedtest_setting_downstream_v6(lport, rport, &ipl_v6, &ipr_v6, ppp, flag, test->duration,test->role);
++	else
++		return set_traffic_speedtest_setting_downstream(lport, rport, ipl, ipr, ppp, flag, test->duration, test->role);
+ 	
+ }
+ 
+diff -auNr old/src/iperf.h new/src/iperf.h
+--- old/src/iperf.h	2024-09-03 12:29:23.852444000 +0800
++++ new/src/iperf.h	2024-08-27 16:33:59.821119000 +0800
+@@ -287,6 +287,7 @@
+     char     *pidfile;				/* -P option */
+     char     speedtest;
+     char     isppp;
++	char	 is_ipv6;
+     char     *logfile;				/* --logfile option */
+     FILE     *outfile;
+ 

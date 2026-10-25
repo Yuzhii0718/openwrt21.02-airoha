@@ -1,0 +1,38 @@
+#!/bin/sh /etc/rc.common
+
+START=01
+STOP=15
+USE_PROCD=1
+PROG=/sbin/airoha_network
+
+start_service() {
+	echo "Starting airoha_network"
+
+	killall -9 airoha_network
+	procd_open_instance
+	procd_set_param command "$PROG"
+	procd_close_instance
+	
+	ip link set pon down
+	ip link set pon name wan
+	ip link set wan up
+}
+
+stop_service() {
+	echo "Stopping airoha_network"
+	ip link set wan down
+	ip link set wan name pon
+	killall -9 airoha_network
+}
+
+reload_service() {
+	echo "Reload airoha_network"
+
+	stop
+	start
+}
+
+service_triggers()
+{
+	procd_add_reload_trigger "pon"
+}

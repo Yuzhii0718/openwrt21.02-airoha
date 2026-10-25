@@ -1,0 +1,227 @@
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/thermal/thermal.h>
+
+#include "en7552.dtsi"
+
+/ {
+	model = "Airoha AN7552 EVB(UBI)";
+	compatible = "airoha,an7552-evb-ubi", "econet,en7523", "airoha,en7523", "econet,en7552", "airoha,an7552";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+		bootargs = "console=ttyS0,115200n8 earlycon=uart8250,mmio32,0x1fbf0000 ubi.mtd=2 ubi.block=0,fit root=/dev/fit0 rootwait";
+		rootdisk = <&ubi_fit>;
+		rootdisk-devname = "ubiblock0_2";
+	};
+
+	gpio0: gpio@1fbf0200 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <0>;
+		reg = <0x1fbf0204 0x4>,
+		      <0x1fbf0200 0x4>,
+		      <0x1fbf0220 0x4>,
+		      <0x1fbf0214 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	gpio1: gpio@1fbf0270 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <32>;
+		reg = <0x1fbf0270 0x4>,
+		      <0x1fbf0260 0x4>,
+		      <0x1fbf0264 0x4>,
+		      <0x1fbf0278 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+	
+	pwm: pwm@1fbf0234{
+		compatible = "airoha,airoha-pwm";
+		reg = <0x1fbf0234 0x20>,
+		      <0x1fbf0268 0x4>,
+		      <0x1fbf0298 0x24>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		regist_green {
+			label = "green:regist";
+			gpios = <&gpio0 2 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+		pon_red {
+			label = "red:pon";
+			gpios = <&gpio0 12 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		lan1_green {
+			label = "green:lan1";
+			gpios = <&gpio0 8 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		lan2_green {
+			label = "green:lan2";
+			gpios = <&gpio0 9 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		lan3_green {
+			label = "green:lan3";
+			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+
+		lan4_green {
+			label = "green:lan4";
+			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+			default-state = "off";
+		};
+	};
+	
+	gpio-keys-polled {
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+		
+		reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		partition@0 {
+			label = "bl2";
+			reg = <0x0 0x20000>;
+			read-only;
+		};
+
+		partition@20000 {
+			label = "ubi";
+			reg = <0x20000 0xffe0000>;
+			compatible = "linux,ubi";
+
+			volumes {
+				ubi-volume-romfile {
+					volname = "romfile";
+					read-only;
+				};
+
+				ubi-volume-art {
+					volname = "art";
+					read-only;
+
+					nvmem-layout {
+						compatible = "fixed-layout";
+						#address-cells = <1>;
+						#size-cells = <1>;
+
+						eeprom0: eeprom@0 {
+							reg = <0x0 0x1000>;
+						};
+					};
+				};
+
+				ubi_fit: ubi-volume-fit {
+					volname = "fit";
+				};
+
+				ubi-volume-fip {
+					volname = "fip";
+				};
+
+				ubi_env: ubi-volume-ubootenv {
+					volname = "ubootenv";
+					nvmem-layout {
+						compatible = "u-boot,env-redundant-bool";
+						env-size = <0x40000>;
+					};
+				};
+
+				ubi_env2: ubi-volume-ubootenv2 {
+					volname = "ubootenv2";
+					nvmem-layout {
+						compatible = "u-boot,env-redundant-bool";
+						env-size = <0x40000>;
+					};
+				};
+			};
+		};
+	};
+
+	i2c@1fbf8000 {
+		compatible = "airoha,airoha-i2c";
+		reg = <0x1fbf8000 0x65>;
+		clock-frequency = <100000>;
+	};
+	i2c-gpio {
+		compatible = "i2c-gpio";
+		sda-gpios = <&gpio0 18 GPIO_ACTIVE_HIGH>;
+		scl-gpios = <&gpio0 19 GPIO_ACTIVE_HIGH>;
+		i2c-gpio,delay-us = <2>;
+		#address-cells = <0>;
+		#size-cells = <0>;
+	};
+	airoha-trng@1faa1000 {
+		compatible = "airoha,airoha-trng";
+		reg = <0x1faa1000 0xc04>;
+		interrupts = <GIC_SPI 35 IRQ_TYPE_LEVEL_HIGH>;
+	};
+	thermal-zones {
+		cpu_thermal: cpu-thermal {
+			polling-delay-passive = <200>;
+			polling-delay = <1000>;
+			thermal-sensors = <&thermal_phy 0>;
+			trips {
+				cpu_passive: cpu-passive {
+					temperature = <125000>;
+					hysteresis = <0>;
+					type = "passive";
+				};
+			};
+			cooling-maps {
+				map0 {
+					trip = <&cpu_passive>;
+					cooling-device = <&cpu0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>,
+							 <&cpu1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
+	};
+	thermal_phy: thermal_phy@1efbd000 {
+		#thermal-sensor-cells = <0>;
+		compatible = "airoha,en7552-thermal_phy";		
+		reg = <0x1efbd000 0x0fff>; //ptp_thermal_ctrl
+		int_name = "ptp_therm";
+	};
+	uart1: serial@1fbf0000 {
+		compatible = "ns8250";
+		reg = <0x1fbf0000 0x30>;
+		reg-io-width = <4>;
+		reg-shift = <2>;
+		interrupts = <GIC_SPI 18 IRQ_TYPE_LEVEL_HIGH>;
+		clock-frequency = <1843200>;
+		status = "okay";
+	};
+	crypto_eip93@1fb70000 {
+		compatible = "airoha,airoha-eip93";
+		reg = <0x1fb70000 0x804>;
+		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;			
+	};
+
+};

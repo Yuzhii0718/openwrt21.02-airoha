@@ -1,0 +1,21 @@
+# Copyright (C) 2006 OpenWrt.org
+
+#config ptmdevice ptm0
+#	option priority	low
+#	option path	fast
+
+#config atmdevice atm0
+#	option vpi 8
+#	option vci 35	
+#	option ulp ip
+#	option enc llc
+#	option path fast
+#	option td td0
+#	option priority 0
+
+#config trafficdesc td0
+#	option servicecat	nrtvbr
+#	option pcr 100
+#	option scr 100
+#	option mbs 1000
+#	option mcr 0

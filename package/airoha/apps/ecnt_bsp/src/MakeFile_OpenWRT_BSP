@@ -1,0 +1,5 @@
+include ecnt-bsp.mk
+include $(APP_BSP_DIR)/make_app_bsp
+include $(APP_BSP_EXCLUSIVE_PRIVATE_DIR)/make_bsp_exclusive
+
+openwrt_ecnt_bsp: mtd brctl_bsp tcci_bsp br2684ctl_bsp

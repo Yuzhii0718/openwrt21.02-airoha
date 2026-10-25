@@ -1,0 +1,24 @@
+{
+	"raePolicyVersion":		"V0.30",
+	"stage": "prod",
+	"reportMethod": "IoT",
+	"dailyUpdateMethod": "1",
+	"updaterInternal":   "1440",
+	"routerInfo":        "1440",
+	"wifiConfig":        "1440",
+	"routerConfig":      "1440",
+	"routerHardware":    "1440",
+	"connectedDevice":	 "1440",
+	"connectedDeviceDetails":	"1440",
+	"internetBandwidth":	    "1440",
+	"eventLogPolicy": [
+		{
+			"cpuThresholdHigh":		"90",
+			"cpuThresholdDuration":	"60"
+		},
+		{		
+			"memoryUtilizationsHigh":		"90",
+			"memoryUtilizationsDuration":	"60"
+		}
+	]
+}

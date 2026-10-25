@@ -1,0 +1,13 @@
+diff -uNr old/include/linux/skbuff.h new/include/linux/skbuff.h
+--- old/include/linux/skbuff.h	2024-03-06 15:58:54.982488000 +0800
++++ new/include/linux/skbuff.h	2024-03-08 09:41:24.409133000 +0800
+@@ -981,7 +981,8 @@
+ 	#define SKB_FROM_WIFI_BIT (1<<15)
+ 		__u32		mark2;
+ 		ecnt_sk_buff_t		ecnt_sk_buff; 
+-		
++
++		/* Add new elements before pAd */		
+ #ifdef TCSUPPORT_WLAN_SW_RPS
+ 		void * pAd;
+ #if defined(TCSUPPORT_CPU_EN7581)

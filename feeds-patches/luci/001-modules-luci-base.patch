@@ -1,0 +1,26 @@
+diff --git a/modules/luci-base/Makefile b/modules/luci-base/Makefile
+index 6cb2b64..2439fa8 100644
+--- a/modules/luci-base/Makefile
++++ b/modules/luci-base/Makefile
+@@ -12,7 +12,7 @@ LUCI_TYPE:=mod
+ LUCI_BASENAME:=base
+ 
+ LUCI_TITLE:=LuCI core libraries
+-LUCI_DEPENDS:=+lua +luci-lib-nixio +luci-lib-ip +rpcd +libubus-lua +luci-lib-jsonc +liblucihttp-lua +luci-lib-base +rpcd-mod-file +rpcd-mod-luci +cgi-io
++LUCI_DEPENDS:=+lua +luci-lib-nixio +luci-lib-ip +rpcd +libubus-lua +luci-lib-jsonc +liblucihttp-lua +luci-lib-base +rpcd-mod-file +rpcd-mod-luci
+ 
+ PKG_LICENSE:=MIT
+ 
+diff --git a/modules/luci-base/root/etc/config/luci b/modules/luci-base/root/etc/config/luci
+index 46947ae..613c7e5 100644
+--- a/modules/luci-base/root/etc/config/luci
++++ b/modules/luci-base/root/etc/config/luci
+@@ -1,6 +1,6 @@
+ config core main
+-	option lang auto
+-	option mediaurlbase /luci-static/bootstrap
++	option lang zh_cn
++	option mediaurlbase /luci-static/argon
+ 	option resourcebase /luci-static/resources
+ 	option ubuspath /ubus/
+ 	

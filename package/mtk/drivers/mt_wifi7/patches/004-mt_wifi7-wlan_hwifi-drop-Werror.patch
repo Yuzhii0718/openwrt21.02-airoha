@@ -1,0 +1,11 @@
+--- a/wlan_hwifi/Makefile
++++ b/wlan_hwifi/Makefile
+@@ -17,7 +17,7 @@
+ endif
+ 
+ #core
+-ccflags-y += -Werror -Wall -g \
++ccflags-y += -Wall -g \
+ 	     -I$(SRC_DIR) \
+ 	     -I$(MTK_WIFI_MAC)/include \
+ 	     -I$(MTK_WIFI_MAC)/include/lib \

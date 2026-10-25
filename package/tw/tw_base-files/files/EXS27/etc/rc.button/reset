@@ -1,0 +1,41 @@
+#!/bin/sh
+
+. /lib/functions.sh
+. /lib/functions/led_control.sh
+
+OVERLAY="$( grep ' /overlay ' /proc/mounts )"
+case "$ACTION" in
+pressed)
+	platform_led_on amber power
+	[ -z "$OVERLAY" ] && return 0
+
+	return 5
+;;
+ready)
+    platform_led_set_timer amber power 250 750
+    echo "receive ready event" > /dev/console
+;;
+timeout)
+	. /etc/diag.sh
+	set_state failsafe
+;;
+released)
+	if [ "$SEEN" -lt 5 ]
+	then
+		echo "REBOOT" > /dev/console
+		/rae/bin/rae -r 2
+		sync
+		reboot
+	elif [ "$SEEN" -ge 5 ]
+	then
+		platform_led_off amber power
+		echo "FACTORY RESET" > /dev/console
+		/rae/bin/rae -r 3
+		protest --restore
+	else
+		platform_led_on green power
+	fi
+;;
+esac
+
+return 0

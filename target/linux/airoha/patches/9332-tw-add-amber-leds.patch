@@ -1,0 +1,169 @@
+--- a/drivers/leds/leds-gpio.c
++++ b/drivers/leds/leds-gpio.c
+@@ -17,9 +17,17 @@
+ #include <linux/property.h>
+ #include <linux/slab.h>
+ 
++#define COMBINED_LED_SIZE 2
++
+ struct gpio_led_data {
+ 	struct led_classdev cdev;
+-	struct gpio_desc *gpiod;
++	//struct gpio_desc *gpiod;
++	u32 bcombined;
++	u32 combined_num;
++	union {
++ 		struct gpio_desc *gpiod;
++		struct gpio_led_data *gpio_combined[COMBINED_LED_SIZE];
++	};
+ 	u8 can_sleep;
+ 	u8 blinking;
+ 	gpio_blink_set_t platform_gpio_blink_set;
+@@ -41,7 +49,7 @@
+ 		level = 0;
+ 	else
+ 		level = 1;
+-
++#if 0
+ 	if (led_dat->blinking) {
+ 		led_dat->platform_gpio_blink_set(led_dat->gpiod, level,
+ 						 NULL, NULL);
+@@ -52,6 +60,34 @@
+ 		else
+ 			gpiod_set_value(led_dat->gpiod, level);
+ 	}
++#else
++	if (led_dat->blinking) {
++		if (led_dat->bcombined) {
++			int idx = 0;
++			while (idx < led_dat->combined_num) {
++				struct gpio_led_data *tmp_led_dat = led_dat->gpio_combined[idx];
++				tmp_led_dat->platform_gpio_blink_set(tmp_led_dat->gpiod, level, NULL, NULL);
++				idx++;
++			}
++		} else {
++			led_dat->platform_gpio_blink_set(led_dat->gpiod, level, NULL, NULL);
++		}
++		led_dat->blinking = 0;
++	} else {
++		if (led_dat->bcombined) {
++			int idx = 0;
++			while (idx < led_dat->combined_num) {
++				struct gpio_led_data *tmp_led_dat = led_dat->gpio_combined[idx];
++				gpiod_set_value(tmp_led_dat->gpiod, level);
++				idx++;
++			}
++		} else if (led_dat->can_sleep) {
++			gpiod_set_value_cansleep(led_dat->gpiod, level);
++		} else {
++			gpiod_set_value(led_dat->gpiod, level);
++		}
++	}
++#endif
+ }
+ 
+ static int gpio_led_set_blocking(struct led_classdev *led_cdev,
+@@ -67,8 +103,19 @@
+ 	struct gpio_led_data *led_dat = cdev_to_gpio_led_data(led_cdev);
+ 
+ 	led_dat->blinking = 1;
+-	return led_dat->platform_gpio_blink_set(led_dat->gpiod, GPIO_LED_BLINK,
+-						delay_on, delay_off);
++	//return led_dat->platform_gpio_blink_set(led_dat->gpiod, GPIO_LED_BLINK,
++	//					delay_on, delay_off);
++	if (led_dat->bcombined) {
++		int idx = 0;
++		while (idx < led_dat->combined_num) {
++ 			struct gpio_led_data *tmp_led_dat = led_dat->gpio_combined[idx];
++			tmp_led_dat->platform_gpio_blink_set(tmp_led_dat->gpiod, GPIO_LED_BLINK, delay_on, delay_off);
++			idx++;
++		}
++		return 0;
++	} else {
++		return led_dat->platform_gpio_blink_set(led_dat->gpiod, GPIO_LED_BLINK, delay_on, delay_off);
++	}
+ }
+ 
+ static int create_gpio_led(const struct gpio_led *template,
+@@ -79,7 +126,17 @@
+ 	int ret, state;
+ 
+ 	led_dat->cdev.default_trigger = template->default_trigger;
+-	led_dat->can_sleep = gpiod_cansleep(led_dat->gpiod);
++	//led_dat->can_sleep = gpiod_cansleep(led_dat->gpiod);
++	if (led_dat->bcombined) {
++		int idx = 0;
++		while (idx < led_dat->combined_num) {
++			led_dat->can_sleep &= gpiod_cansleep(led_dat->gpio_combined[idx]->gpiod);
++			idx++;
++		}
++	} else {
++		led_dat->can_sleep = gpiod_cansleep(led_dat->gpiod);
++	}
++
+ 	if (!led_dat->can_sleep)
+ 		led_dat->cdev.brightness_set = gpio_led_set;
+ 	else
+@@ -104,9 +161,11 @@
+ 	if (template->retain_state_shutdown)
+ 		led_dat->cdev.flags |= LED_RETAIN_AT_SHUTDOWN;
+ 
+-	ret = gpiod_direction_output(led_dat->gpiod, state);
+-	if (ret < 0)
+-		return ret;
++	if(!led_dat->bcombined) {
++		ret = gpiod_direction_output(led_dat->gpiod, state);
++		if (ret < 0)
++			return ret;
++	}
+ 
+ 	if (template->name) {
+ 		led_dat->cdev.name = template->name;
+@@ -150,7 +209,9 @@
+ 		struct gpio_led_data *led_dat = &priv->leds[priv->num_leds];
+ 		struct gpio_led led = {};
+ 		const char *state = NULL;
+-
++		const char *combined_names[COMBINED_LED_SIZE];
++		int combined_num = 0;
++#if 0
+ 		/*
+ 		 * Acquire gpiod from DT with uninitialized label, which
+ 		 * will be updated after LED class device is registered,
+@@ -164,7 +224,35 @@
+ 			fwnode_handle_put(child);
+ 			return ERR_CAST(led.gpiod);
+ 		}
+-
++#endif
++		if (fwnode_property_present(child, "combined")) {
++			int name_idx, led_idx;
++			led_dat->bcombined = true;
++			combined_num = fwnode_property_read_string_array(child, "combined", combined_names, COMBINED_LED_SIZE);
++			name_idx = 0;
++			while (name_idx < combined_num) {
++				led_idx = 0;
++				while (led_idx < priv->num_leds) {
++					struct led_classdev *cdev = &priv->leds[led_idx].cdev;
++					if (!strcmp(combined_names[name_idx], cdev->dev->kobj.name)) {
++						led_dat->gpio_combined[led_dat->combined_num] = &priv->leds[led_idx];
++						led_dat->combined_num ++;
++					}
++					led_idx++;
++				}
++				name_idx++;
++			}
++		} else {
++			led_dat->bcombined = false;
++			led.gpiod = devm_fwnode_get_gpiod_from_child(dev, NULL, child,
++								GPIOD_ASIS,
++								NULL);
++			if (IS_ERR(led.gpiod)) {
++				fwnode_handle_put(child);
++				return ERR_CAST(led.gpiod);
++			}
++		}
++		if (!led_dat->bcombined)
+ 		led_dat->gpiod = led.gpiod;
+ 
+ 		fwnode_property_read_string(child, "linux,default-trigger",

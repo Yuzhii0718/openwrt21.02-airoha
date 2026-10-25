@@ -1,0 +1,40 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+
+sync_uboot_env() {
+	local fenv_region=`fw_printenv fenv_region 2>/dev/null | awk -F = '{print $2;}'`
+	local region=`envctl factory get region`
+
+	echo "factory region is $region, Sync uboot env"
+	if [ -n "$fenv_region" ] && [ "$fenv_region" != "$region" ]; then
+		echo "Sync uboot env fenv_region $fenv_region to factory env"
+		envctl factory set region $fenv_region
+	fi
+
+	local fenv_restore=`fw_printenv fenv_restore 2>/dev/null | awk -F = '{print $2;}'`
+	if [ -n "$fenv_restore" ] && [ "$fenv_restore" == "yes" ]; then
+		echo "uboot env fenv_restore is yes"
+		local fenv_model=`fw_printenv fenv_model 2>/dev/null | awk -F = '{print $2;}'`
+		local model=`envctl factory get model`
+		if [ -n "$fenv_model" ] && [ "$fenv_model" != "$model" ]; then
+			echo "Sync uboot env fenv_model $fenv_model to factory env"
+			envctl factory set model $fenv_model
+		fi
+		echo "fenv_restore is yes, need restore"
+		touch /tmp/.restore
+		cp -rf /rom/etc/config/* /etc/config/
+		local newmodel=$(echo `envctl factory get model`)
+		if [ -n "$newmodel" ] && [ "$newmodel" != "EXS27" ]; then
+			cp -rf /rom/cfg/$newmodel/* /etc/config/
+			if [ "$newmodel" == "EXS18" ]; then
+				envctl factory set axmodel BE3600 
+			fi
+		else
+				envctl factory set axmodel BE5000
+		fi
+		fw_setenv fenv_restore no 2>/dev/null
+	fi
+}
+
+boot_hook_add preinit_main sync_uboot_env

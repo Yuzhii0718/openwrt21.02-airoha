@@ -1,0 +1,37 @@
+--- a/nvram.h
++++ b/nvram.h
+@@ -1,7 +1,10 @@
+ #ifndef _NVRAM_H
+ #define _NVRAM_H 	1
+ 
+-#include <linux/autoconf.h>
++/* This tree has no BSP-generated linux/autoconf.h. The product values were
++ * recovered from the prebuilt nvram_env.o: fb[] holds two blocks in
++ * .data.rel.local and getNvramNum() returns 2, so the extension block is off
++ * and there is no dual-image uboot block. */
+ 
+ #ifdef CONFIG_DUAL_IMAGE
+ #define UBOOT_NVRAM	0
+@@ -94,11 +97,7 @@
+ } nvram_ioctl_t;
+ 
+ 
+-#ifdef CONFIG_DUAL_IMAGE
+-#define FLASH_BLOCK_NUM	5
+-#else
+-#define FLASH_BLOCK_NUM	4
+-#endif
++#define FLASH_BLOCK_NUM	2
+ 
+ 
+ void nvram_init(int index);
+--- a/nvram_env.c
++++ b/nvram_env.c
+@@ -9,7 +9,6 @@
+ #include "nvram_env.h"
+ #include "flash_api.h"
+ 
+-#include <linux/autoconf.h>
+ 
+ char libnvram_debug = 0;
+ #define LIBNV_PRINT(x, ...) do { if (libnvram_debug) printf("%s %d: " x, __FILE__, __LINE__, ## __VA_ARGS__); } while(0)

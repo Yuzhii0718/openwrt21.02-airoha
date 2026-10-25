@@ -1,0 +1,5 @@
+src-cpy airoha ../airoha_feeds
+src-git mtk_openwrt_feed https://gerrit.mediatek.inc/openwrt/feeds/mtk_openwrt_feeds^6cf5e8ef66814e6f8f532b77c21f6f9c7e8c341f
+src-git packages https://gerrit.mediatek.inc/openwrt/feeds/packages^ded142471e36831d2af63c7fe5062c4367f8ccd2
+src-git luci https://gerrit.mediatek.inc/openwrt/feeds/luci^d24760e60a83b63f316c7b186e30636b5baa5481
+src-git routing https://gerrit.mediatek.inc/openwrt/feeds/routing^9e7698f20d1edf8f912fbce2f21400f3cc772b3

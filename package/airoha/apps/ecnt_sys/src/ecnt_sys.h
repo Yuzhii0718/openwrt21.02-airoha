@@ -1,0 +1,75 @@
+/***************************************************************
+Copyright Statement:
+
+This software/firmware and related documentation (¡°Airoha Software¡±) 
+are protected under relevant copyright laws. The information contained herein 
+is confidential and proprietary to Airoha (HK) Limited (¡°Airoha¡±) and/or 
+its licensors. Without the prior written permission of Airoha and/or its licensors, 
+any reproduction, modification, use or disclosure of Airoha Software, and 
+information contained herein, in whole or in part, shall be strictly prohibited.
+
+Airoha (HK) Limited  AIROHA. ALL RIGHTS RESERVED.
+
+BY OPENING OR USING THIS FILE, RECEIVER HEREBY UNEQUIVOCALLY 
+ACKNOWLEDGES AND AGREES THAT THE SOFTWARE/FIRMWARE AND ITS 
+DOCUMENTATIONS (¡°AIROHA SOFTWARE¡±) RECEIVED FROM AIROHA 
+AND/OR ITS REPRESENTATIVES ARE PROVIDED TO RECEIVER ON AN ¡°AS IS¡± 
+BASIS ONLY. AIROHA EXPRESSLY DISCLAIMS ANY AND ALL WARRANTIES, 
+WHETHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE IMPLIED 
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, 
+OR NON-INFRINGEMENT. NOR DOES AIROHA PROVIDE ANY WARRANTY 
+WHATSOEVER WITH RESPECT TO THE SOFTWARE OF ANY THIRD PARTIES WHICH 
+MAY BE USED BY, INCORPORATED IN, OR SUPPLIED WITH THE AIROHA SOFTWARE. 
+RECEIVER AGREES TO LOOK ONLY TO SUCH THIRD PARTIES FOR ANY AND ALL 
+WARRANTY CLAIMS RELATING THERETO. RECEIVER EXPRESSLY ACKNOWLEDGES 
+THAT IT IS RECEIVER¡¯S SOLE RESPONSIBILITY TO OBTAIN FROM ANY THIRD 
+PARTY ALL PROPER LICENSES CONTAINED IN AIROHA SOFTWARE.
+
+AIROHA SHALL NOT BE RESPONSIBLE FOR ANY AIROHA SOFTWARE RELEASES 
+MADE TO RECEIVER¡¯S SPECIFICATION OR CONFORMING TO A PARTICULAR 
+STANDARD OR OPEN FORUM. RECEIVER'S SOLE AND EXCLUSIVE REMEDY AND 
+AIROHA'S ENTIRE AND CUMULATIVE LIABILITY WITH RESPECT TO THE AIROHA 
+SOFTWARE RELEASED HEREUNDER SHALL BE, AT AIROHA'S SOLE OPTION, TO 
+REVISE OR REPLACE THE AIROHA SOFTWARE AT ISSUE OR REFUND ANY SOFTWARE 
+LICENSE FEES OR SERVICE CHARGES PAID BY RECEIVER TO AIROHA FOR SUCH 
+AIROHA SOFTWARE.
+***************************************************************/
+
+#ifndef ECNT_SYS_H
+#define ECNT_SYS_H
+
+const static int size_art[] = {
+	0x40000,	/*ART_RESERVE*/
+	0x200000,	/*WIFI_6G_SIZE*/
+	0x40000,	/*first 20000:for 18.06 2.4G(5G) cali, second 20000 for BOB_SIZE*/
+	0x40000,	/*WIFI_24G_SIZE*/
+	0x40000,	/*WIFI_5G_SIZE*/
+	0x40000,	/*PROLINECMD_SIZE*/
+	0x40000 	/*BOOTFLAG_SIZE*/
+};
+
+static char *bob_path[] = {
+	"/tmp/7570_bob.conf",
+	"/etc/lddla/bob.conf",
+	"/tmp/en7572_bob_0.conf",
+	"/tmp/en7572_bob_1.conf",
+};
+
+static char *bob_cmd[] = {
+	"dualbob",
+	"dualbob_7572",
+	"7570",
+	"7572",
+	"8901",
+};
+
+#define BOB_7570_LEN 				0x0A0
+#define BOB_7572_LEN 				0x400
+#define BOB_8901_LEN 				0x400
+
+#define BOOT_FLAG_FILE 	"/tmp/boot"
+
+int main_mmc(int argc,char **argv);
+int main_mtd(int argc,char **argv);
+
+#endif

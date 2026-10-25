@@ -1,0 +1,26 @@
+#
+# Copyright (C) 2009 OpenWrt.org
+#
+
+preinit_prepare_defaultfile() {
+	local factory_mode=`envctl factory get factory_mode`
+	local model=$(echo `envctl factory get model`)
+	echo "factory_mode is $factory_mode model $model"
+	if [ "$factory_mode" = "on" ]; then
+		cp -rf /cfg/factory/*  /etc/config/
+		echo 1 > /proc/factory_mode
+		touch /tmp/.restore
+	elif [ "$factory_mode" = "defing" ]; then
+		envctl factory set factory_mode off
+		echo "do restore"
+		touch /tmp/.restore
+		cp -rf /rom/etc/config/* /etc/config/
+
+		if [ -n "$model" ] && [ "$model" != "EXS27" ]; then
+			cp -rf /rom/cfg/$model/* /etc/config/
+			echo "cp $model cfg to rootfs"
+		fi
+	fi
+}
+
+boot_hook_add preinit_main preinit_prepare_defaultfile

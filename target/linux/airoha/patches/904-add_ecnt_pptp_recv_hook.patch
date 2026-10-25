@@ -1,0 +1,22 @@
+--- a/net/ipv4/ip_input.c
++++ b/net/ipv4/ip_input.c
+@@ -141,6 +141,8 @@
+ #include <linux/mroute.h>
+ #include <linux/netlink.h>
+ #include <net/dst_metadata.h>
++#include <ecnt_hook/ecnt_hook_net.h>
++#include <ecnt_hook/ecnt_hook_pptp.h>
+ 
+ /*
+  *	Process Router Attention IP option (RFC 2113)
+@@ -243,6 +245,10 @@ int ip_local_deliver(struct sk_buff *skb
+ 	 *	Reassemble IP fragments.
+ 	 */
+ 	struct net *net = dev_net(skb->dev);
++	struct net_data_s net_data;
++	net_data.pskb = &skb;
++	/* ecnt_dp_hook */
++	ECNT_PPTP_GENERIC_HOOK(ECNT_DP_PPTP_RCV,&net_data);
+ 
+ 	if (ip_is_fragment(ip_hdr(skb))) {
+ 		if (ip_defrag(net, skb, IP_DEFRAG_LOCAL_DELIVER))

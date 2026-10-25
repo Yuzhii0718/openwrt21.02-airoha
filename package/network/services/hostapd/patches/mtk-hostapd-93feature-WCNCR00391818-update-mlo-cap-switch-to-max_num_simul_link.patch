@@ -1,0 +1,26 @@
+Index: hostapd-2022-07-29-b704dc72/wpa_supplicant/wps_supplicant.c
+===================================================================
+--- hostapd-2022-07-29-b704dc72.orig/wpa_supplicant/wps_supplicant.c
++++ hostapd-2022-07-29-b704dc72/wpa_supplicant/wps_supplicant.c
+@@ -694,13 +694,18 @@ static int wpa_supplicant_wps_cred(void
+ 		ml_ie = ml_get_ie(wpa_bss_ie_ptr(bss), bss->ie_len, ML_CTRL_TYPE_BASIC);
+ 		if (ml_ie) {
+ 			struct wpa_ml_ie_parse ml;
++			int max_num_simul_link = 0;
++
+ 			wpa_printf(MSG_DEBUG, "WPS: MLO capable " MACSTR,
+ 					MAC2STR(bss->bssid));
+ 			if (ml_parse_ie(&ml_ie[3], ml_ie[1] - 1, &ml, NULL) == 0) {
+-				wpa_printf(MSG_DEBUG, "WPS: eml_cap_present:%d " MACSTR,
+-						ml.eml_cap_present,
++				max_num_simul_link = ml.mld_cap & 0x0F;
++				if (max_num_simul_link > 0)
++					ssid->mlo_capable = 1;
++				
++				wpa_printf(MSG_DEBUG, "WPS: eml_cap_present:%d max_num_simul_link=%d" MACSTR,
++						ml.eml_cap_present, max_num_simul_link,
+ 						MAC2STR(bss->bssid));
+-				ssid->mlo_capable = 1; //ml.eml_cap_present;
+ 			}
+ 		} else
+ 			wpa_printf(MSG_DEBUG, "WPS: MLO not capable " MACSTR,

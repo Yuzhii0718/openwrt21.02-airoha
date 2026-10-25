@@ -1,0 +1,9 @@
+--- a/net/bridge/br_input.c
++++ b/net/bridge/br_input.c
+@@ -128,5 +128,5 @@
+     if(g_dhcpmon_pid == 0)
+     {
+-        printk("dhcpmon_pid's pid = %d.Please run dhcpmon_pid.\n", g_dhcpmon_pid);
++        printk_once("dhcpmon_pid's pid = %d.Please run dhcpmon_pid.\n", g_dhcpmon_pid);
+         return;
+     }

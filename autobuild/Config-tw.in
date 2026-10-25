@@ -1,0 +1,9 @@
+source "tmp/.config-target.in"
+
+# TW features
+
+config TW_PRODUCT_NAME
+	string
+	prompt "select product name"
+	help
+	  tw select tw product name

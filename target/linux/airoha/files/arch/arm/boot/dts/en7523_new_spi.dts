@@ -1,0 +1,204 @@
+
+#include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+
+/dts-v1/;
+
+#include "en7523_new_spi.dtsi"
+#include "en7523_kernel_api.dtsi"
+
+/ {
+	compatible = "econet,en7523", "airoha,en7523";
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	gpio0: gpio@1fbf0200 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <0>;
+		reg = <0x1fbf0204 0x4>,
+		      <0x1fbf0200 0x4>,
+		      <0x1fbf0220 0x4>,
+		      <0x1fbf0214 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+
+	gpio1: gpio@1fbf0270 {
+		compatible = "airoha,airoha-gpio";
+		gpio_base = <32>;
+		reg = <0x1fbf0270 0x4>,
+		      <0x1fbf0260 0x4>,
+		      <0x1fbf0264 0x4>,
+		      <0x1fbf0278 0x4>;
+		gpio-controller;
+		#gpio-cells = <2>;
+	};
+	
+	pwm: pwm@1fbf0234{
+		compatible = "airoha,airoha-pwm";
+		reg = <0x1fbf0234 0x20>,
+		      <0x1fbf0268 0x4>,
+		      <0x1fbf0298 0x24>;
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		internet {
+			label = "internet";
+			gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		phy_tx_power_disable {
+			label = "phy_tx_power_disable";
+			gpios = <&gpio0 16 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
+		};
+		power {
+			label = "power";
+			gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		usb_0 {
+			label = "usb_0";
+			gpios = <&gpio0 4 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
+		};
+		voip_hook {
+			label = "voip_hook";
+			gpios = <&gpio0 5 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
+		};
+		voip_hook2 {
+			label = "voip_hook2";
+			gpios = <&gpio0 27 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		wlan {
+			label = "wlan";
+			gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		wps {
+			label = "wps";
+			gpios = <&gpio0 26 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+		xponLos {
+			label = "xponLos";
+			gpios = <&gpio0 3 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "timer";
+		};
+		
+		xponStatus {
+			label = "xponStatus";
+			gpios = <&gpio0 10 GPIO_ACTIVE_LOW>;
+			linux,default-trigger = "timer";
+		};
+	};
+	
+	gpio-keys-polled {
+		compatible = "gpio-keys-polled";
+		poll-interval = <100>;
+		
+		reset {
+			label = "reset";
+			linux,code = <KEY_RESTART>;
+			gpios = <&gpio0 0 GPIO_ACTIVE_LOW>;
+		};
+		
+		wps {
+			label = "wps";
+			linux,code = <KEY_WPS_BUTTON>;
+			gpios = <&gpio0 7 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00080000>;
+		};
+		tclinux@80000 {
+			label = "tclinux";
+			reg = <0x00080000 0x02800000>;
+		};
+		tclinux_slave@2880000 {
+			label = "tclinux_slave";
+			reg = <0x02880000 0x02800000>;
+		};		
+		rootfs_data@5080000 {
+			label = "rootfs_data";
+			reg = <0x05080000 0x00800000>;
+		};
+		art@de80000 {
+			label = "art";
+			//art is located in flash end. if reg offset != ffffffff, it represents the actual offset
+			//else offset = flash_logic_size-reg_size(drivers/mtd/maps/tc3162-flash.c)
+			reg = <0xffffffff 0x00380000>;
+		};
+	};
+
+	partition-nor@1fa10000 {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		bootloader@0 {
+			label = "bootloader";
+			reg = <0x00000000 0x00080000>;
+		};
+		tclinux@80000 {
+			label = "tclinux";
+			reg = <0x00080000 0x1900000>;
+		};
+		rootfs_data@5080000 {
+			label = "rootfs_data";
+			reg = <0x1980000 0x400000>;
+		};
+	};
+
+	spi_nand_ctrl: spi_nand@1fa10000 {
+		compatible = "airoha,airoha-snand";
+		reg = <0x1fa10000 0x140>,	//SPI Controller Base
+			  <0x1fa11000 0x160>;	//NFI2SPI
+		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		flash_nand: flash@0 {
+			compatible = "spi-nand";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+			spi-tx-bus-width = <1>;
+			spi-rx-bus-width = <2>;
+			airoha,bmt;
+		
+		};
+	};
+
+
+	spi_nor_ctrl: spi_nor@1fa10000 {
+		compatible = "airoha,airoha-snor";
+		reg = <0x1fa10000 0x140>,	//SPI Controller Base
+			  <0x1fa11000 0x160>;	//NFI2SPI
+		interrupts = <GIC_SPI 51 IRQ_TYPE_LEVEL_HIGH>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		flash_nor: flash@1 {
+			compatible = "jedec,spi-nor";
+			reg = <0>;
+			spi-max-frequency = <50000000>;
+			spi-tx-bus-width = <1>;
+			spi-rx-bus-width = <2>;
+		
+		};
+	};
+
+};
