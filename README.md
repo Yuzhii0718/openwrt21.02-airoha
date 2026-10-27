@@ -1,6 +1,8 @@
 > [!CAUTION]
 > Contains software code developed in part by third parties, such as Airoha/EcoNet/Mediatek/NETGEAR/TP-Link, including software code subject to the GNU General Public License ("GPL") or GNU Lesser General Public License ("LGPL"). Please see the [GPL](https://www.gnu.org/licenses/gpl.txt) and [LGPL](https://www.gnu.org/licenses/lgpl.txt) Websites to view the terms of each license.
 
+**The code for this project is based on GPL open-source code provided by Netgear and TP-Link.**
+
 ![OpenWrt logo](include/logo.png)
 
 OpenWrt Project is a Linux operating system targeting embedded devices. Instead
